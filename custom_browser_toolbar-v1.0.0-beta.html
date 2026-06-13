@@ -1,0 +1,3044 @@
+<!DOCTYPE html>
+<html lang="ms">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom OBS Toolbar</title>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+
+    <style>
+        :root {
+            --bg:#111113; --bg2:#18181b; --bg3:#232328;
+            --bdr:#2d2d32; --text:#d4d4d8; --dim:#71717a;
+            --green:#22c55e; --red:#ef4444; --blue:#3b82f6;
+            --h:42px; --vw:48px; --sp:44px;
+        }
+
+        * {
+            margin:0; padding:0; box-sizing:border-box;
+        }
+
+        html, body {
+            background:var(--bg); color:var(--text);
+            font-family:'Segoe UI',system-ui,sans-serif;
+            font-size:12px; overflow:hidden;
+            user-select:none; width:100%; height:100%;
+        }
+
+        /* ── YouTube-style scrollbars ── */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: #4d4d57 transparent;
+        }
+        *::-webkit-scrollbar       { width:8px; height:8px; }
+        *::-webkit-scrollbar-track { background:transparent; }
+        *::-webkit-scrollbar-thumb {
+            background:#4d4d57; border-radius:8px;
+            border:2px solid transparent; background-clip:content-box;
+        }
+        *::-webkit-scrollbar-thumb:hover { background:#6b6b78; background-clip:content-box; }
+        *::-webkit-scrollbar-corner { background:transparent; }
+
+
+/* ── TOOLBAR Horizontal ── */
+        .toolbar {
+            display:flex; align-items:center;
+            height:var(--h); padding:0 8px; gap:4px;
+            border-bottom:1px solid var(--bdr);
+            background:var(--bg); position:relative; z-index:1;
+            flex-shrink:0;
+        }
+
+        .sep {
+            width:1px; height:22px;
+            background:var(--bdr);
+            margin:0 4px; flex-shrink:0;
+        }
+
+        .gap {
+            flex:1;
+        }
+
+
+/* ── SCENE PANEL (now lives inside the toolbar) ── */
+        .scene-panel {
+            display:flex; flex-wrap:nowrap; align-items:center; gap:3px;
+            height:100%; padding:0 4px;
+            background:transparent; border-bottom:none;
+            min-width:0; flex-shrink:1;
+            overflow-x:auto; overflow-y:hidden;
+            scrollbar-width:none;
+        }
+
+        .scene-panel::-webkit-scrollbar { display:none; }
+
+        .scene-panel:empty { display:none; }
+
+        /* Hide the separator right before the scene panel when it's empty */
+        .sep:has(+ .scene-panel:empty) { display:none; }
+
+        .scene-btn {
+            display:flex; align-items:center; gap:5px;
+            height:24px; padding:0 9px;
+            border:1px solid transparent; border-radius:3px;
+            background:#2a2a30; color:#b0b0b8;
+            font:inherit; font-size:11px; cursor:pointer;
+            transition:background .1s, color .1s, border-color .1s;
+            white-space:nowrap;
+        }
+
+        .scene-btn:hover  { background:#34343c; color:#e0e0e8; }
+        .scene-btn:active { background:#1e1e24; }
+
+        .scene-btn.active-scene {
+            background:#1a3a6e; color:#93c5fd;
+            border-color:#2563eb;
+        }
+
+        /* Separator between scene buttons and preset buttons */
+        .scene-pre-sep {
+            display:flex; align-items:center;
+            height:22px; padding:0 5px; flex-shrink:0;
+            font-size:9px; text-transform:uppercase; letter-spacing:.7px;
+            color:#444450; gap:4px; align-self:center;
+        }
+
+        .scene-pre-sep::before,
+        .scene-pre-sep::after {
+            content:''; width:1px; height:14px; background:#2a2a30; flex-shrink:0;
+        }
+
+
+/* ── SOURCE PANEL ── */
+        .source-panel {
+            display:flex; flex-wrap:wrap; gap:4px;
+            padding:5px 8px;
+            background:var(--bg);
+            border-bottom:1px solid var(--bdr);
+            min-height:0; flex-shrink:0;
+        }
+
+        .source-panel:empty { display:none; }
+
+        .source-header {
+            width:100%; display:flex; align-items:center; gap:6px;
+            font-size:9px; text-transform:uppercase; letter-spacing:.8px;
+            color:var(--dim); margin-bottom:1px; flex-shrink:0;
+        }
+
+        .source-header-line {
+            flex:1; height:1px; background:var(--bdr);
+        }
+
+        /* ── SOURCE ITEM ROW ── */
+        .src-row {
+            display:flex; align-items:center;
+            height:24px; border-radius:3px;
+            background:#2a2a30; overflow:hidden;
+            border:1px solid transparent;
+            transition:border-color .1s;
+            flex-shrink:0;
+        }
+
+        .src-row:hover { border-color:#3a3a42; }
+
+        .src-row.src-hidden  { background:transparent; border-color:#2a2a32; }
+        .src-row.src-locked  { border-color:#b45309; background:rgba(180,83,9,.08); }
+        .src-row.src-selected { border-color:var(--blue); background:rgba(59,130,246,.08); }
+        .src-row.src-obslocked { border-color:#7c3aed; }
+        .src-row.src-obslocked .src-name { color:#c4b5fd; }
+
+        .src-name {
+            display:flex; align-items:center; gap:6px;
+            flex:1; padding:0 8px; height:100%;
+            font-size:11px; color:#b0b0b8;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+            cursor:pointer; user-select:none; line-height:22px;
+        }
+
+        .src-row.src-locked .src-name { cursor:not-allowed; }
+
+        .src-row.src-hidden  .src-name { color:#44444e; }
+        .src-row.src-locked  .src-name { color:#c0820a; }
+        .src-row.src-selected .src-name { color:#93c5fd; }
+
+        .source-loading {
+            font-size:10px; color:var(--dim);
+            padding:2px 4px; font-style:italic;
+        }
+
+
+/* ── SOURCE PRESET PANEL ── */
+        .srcpre-panel {
+            display:flex; flex-wrap:wrap; align-items:center; gap:3px;
+            padding:4px 6px;
+            background:#1a1a1e;
+            border-bottom:1px solid #0d0d0f;
+            min-height:0; flex-shrink:0;
+        }
+
+        .srcpre-panel:empty { display:none; }
+
+        .srcpre-header {
+            display:flex; align-items:center; gap:6px;
+            font-size:9px; text-transform:uppercase; letter-spacing:.8px;
+            color:#444450; flex-shrink:0;
+        }
+
+        /* Wrapper around each preset btn + action overlay */
+        .srcpre-wrap {
+            position:relative; display:inline-flex; flex-shrink:0;
+        }
+
+        .srcpre-btn {
+            display:flex; align-items:center; gap:5px;
+            height:24px; padding:0 9px;
+            border:1px solid transparent; border-radius:3px;
+            background:#2a2a30; color:#b0b0b8;
+            font:inherit; font-size:11px; cursor:pointer;
+            transition:background .1s, color .1s, border-color .1s;
+            white-space:nowrap;
+        }
+
+        .srcpre-btn:hover  { background:#34343c; color:#e0e0e8; }
+        .srcpre-btn:active { background:#1e1e24; }
+
+        /* Aktif = hijau */
+        .srcpre-btn.pre-active {
+            background:rgba(34,197,94,.08); color:#86efac;
+            border-color:rgba(34,197,94,.3);
+        }
+
+        /* Hidden = merah */
+        .srcpre-btn.pre-hidden {
+            background:rgba(239,68,68,.07); color:#fca5a5;
+            border-color:rgba(239,68,68,.25);
+        }
+
+        .pre-dot {
+            width:5px; height:5px; border-radius:50%;
+            background:#444450; flex-shrink:0;
+            transition:background .2s;
+        }
+
+        .pre-icon { font-size:12px; }
+
+        .srcpre-btn.pre-active .pre-dot { background:#4ade80; box-shadow:0 0 4px rgba(74,222,128,.4); }
+        .srcpre-btn.pre-hidden .pre-dot { background:#f87171; }
+
+        /* Edit/delete — context menu trigger sits BESIDE the button */
+        .srcpre-wrap {
+            position:relative; display:inline-flex;
+            align-items:center; flex-shrink:0; gap:1px;
+        }
+
+        .srcpre-menu-btn {
+            display:none; align-items:center; justify-content:center;
+            width:14px; height:20px;
+            background:none; border:none; cursor:pointer;
+            font-size:10px; color:#444450; padding:0; flex-shrink:0;
+            line-height:1;
+        }
+
+        .srcpre-wrap:hover .srcpre-menu-btn,
+        .scene-wrap:hover  .srcpre-menu-btn { display:flex; }
+        .srcpre-menu-btn:hover { color:#b0b0b8; }
+
+        /* Dropdown context menu */
+        .srcpre-ctx {
+            display:none; position:fixed;
+            background:#1e1e24; border:1px solid #2a2a30; border-radius:4px;
+            box-shadow:0 4px 16px rgba(0,0,0,.6);
+            z-index:2000; overflow:hidden; min-width:90px;
+        }
+
+        .srcpre-ctx.open { display:block; }
+
+        .srcpre-ctx-item {
+            display:flex; align-items:center; gap:7px;
+            padding:6px 10px; font-size:11px; color:#b0b0b8;
+            cursor:pointer; background:none; border:none;
+            width:100%; text-align:left; white-space:nowrap;
+            transition:background .1s;
+        }
+
+        .srcpre-ctx-item:hover     { background:#2a2a30; color:#e0e0e8; }
+        .srcpre-ctx-item.ctx-del   { color:#f87171; }
+        .srcpre-ctx-item.ctx-del:hover { background:#3d1515; color:#fca5a5; }
+
+        /* ── TOGGLE STYLE ── */
+        .srcpre-toggle {
+            display:flex; align-items:center; gap:6px;
+            cursor:pointer; flex-shrink:0; padding:2px 4px;
+        }
+
+        .toggle-track {
+            width:36px; height:20px; border-radius:10px;
+            background:#2a2a30; border:1px solid #3a3a42;
+            position:relative; flex-shrink:0;
+            transition:background .2s, border-color .2s;
+        }
+
+        .toggle-track::after {
+            content:''; position:absolute;
+            width:14px; height:14px; border-radius:50%;
+            top:2px; left:2px;
+            background:#666672;
+            transition:transform .2s, background .2s;
+        }
+
+        /* active state */
+        .srcpre-toggle.pre-active .toggle-track {
+            background:rgba(34,197,94,.12); border-color:rgba(34,197,94,.35);
+        }
+        .srcpre-toggle.pre-active .toggle-track::after {
+            background:#4ade80; transform:translateX(16px);
+            box-shadow:0 0 4px rgba(74,222,128,.4);
+        }
+
+        /* hidden state */
+        .srcpre-toggle.pre-hidden .toggle-track {
+            background:rgba(239,68,68,.08); border-color:rgba(239,68,68,.25);
+        }
+        .srcpre-toggle.pre-hidden .toggle-track::after {
+            background:#f87171; transform:translateX(0);
+        }
+
+        .toggle-label {
+            font-size:11px; color:#b0b0b8;
+            user-select:none; white-space:nowrap; overflow:hidden;
+            text-overflow:ellipsis; max-width:80px;
+        }
+
+        .srcpre-toggle.pre-active .toggle-label { color:#86efac; }
+        .srcpre-toggle.pre-hidden .toggle-label { color:#fca5a5; }
+
+        .srcpre-add {
+            display:flex; align-items:center; justify-content:center;
+            width:20px; height:20px; border-radius:3px;
+            border:1px dashed #2a2a30; background:transparent;
+            color:#444450; font-size:13px; cursor:pointer;
+            transition:border-color .12s, color .12s; flex-shrink:0;
+        }
+
+        .srcpre-add:hover { border-color:#52525b; color:#b0b0b8; }
+
+
+
+/* ── VERTICAL ── */
+        body.vertical {
+            display:flex; flex-direction:column;
+            overflow:hidden;
+        }
+
+        body.vertical #vRow {
+            display:flex; flex-direction:row;
+            flex:1; min-height:0; overflow:hidden;
+        }
+
+        body.vertical .toolbar {
+            flex-direction:column; align-items:center;
+            width:var(--vw); height:100%; flex-shrink:0;
+            border-bottom:none; border-right:1px solid var(--bdr);
+            padding:8px 0; gap:4px;
+            overflow-y:auto; scrollbar-width:none;
+        }
+
+        body.vertical .toolbar::-webkit-scrollbar { display:none; }
+
+        /* Scene panel + presets stay INSIDE the toolbar rail, rendered as
+           compact 34x34 icon buttons (same as the other toolbar buttons) */
+        body.vertical .scene-panel {
+            flex-direction:column; flex-wrap:nowrap;
+            width:100%; align-items:center;
+            gap:4px; padding:0;
+            background:transparent; border:none;
+            overflow:visible;
+        }
+
+        body.vertical .scene-btn,
+        body.vertical .srcpre-wrap,
+        body.vertical .srcpre-btn,
+        body.vertical .srcpre-toggle {
+            width:34px; height:34px; min-height:34px;
+            padding:0; border-radius:6px;
+            flex-direction:column; justify-content:center; align-items:center;
+        }
+
+        body.vertical .scene-btn-label,
+        body.vertical .scene-pre-sep,
+        body.vertical .toggle-label,
+        body.vertical .pre-label,
+        body.vertical .pre-dot {
+            display:none;
+        }
+
+        body.vertical .srcpre-menu-btn { display:none !important; }
+
+        body.vertical .source-panel {
+            flex-direction:column; flex-wrap:nowrap;
+            padding:4px 4px; width:130px; height:100%; flex-shrink:0;
+            border-bottom:none; border-right:1px solid #0d0d0f;
+            background:#1a1a1e;
+            gap:3px; overflow-y:auto; overflow-x:hidden;
+        }
+
+        body.vertical .src-row { width:122px; }
+        body.vertical .source-header { display:none; }
+
+        /* Properties bar becomes a full-width bar below the toolbar/source row */
+        body.vertical .src-prop-bar.visible {
+            width:100%; flex-shrink:0;
+            border-top:1px solid #0d0d0f; border-bottom:none;
+        }
+
+        /* ── SOURCE PROPERTIES BAR ── */
+        .src-prop-bar {
+            display:none; align-items:center; gap:1px;
+            padding:0 6px; height:28px; flex-shrink:0;
+            background:#111114; border-bottom:1px solid #0d0d0f;
+            overflow:hidden;
+        }
+
+        .src-prop-bar.visible { display:flex; }
+
+        .src-prop-name {
+            font-size:11px; color:#c0c0cc; font-weight:500;
+            padding:0 8px 0 2px; flex-shrink:0;
+            max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+        }
+
+        .src-prop-sep {
+            width:1px; height:14px; background:#2a2a30;
+            flex-shrink:0; margin:0 2px;
+        }
+
+        .src-prop-btn {
+            display:flex; align-items:center; gap:4px;
+            height:22px; padding:0 8px;
+            background:none; border:1px solid transparent;
+            border-radius:3px; color:#888896; font:inherit;
+            font-size:11px; cursor:pointer; white-space:nowrap;
+            transition:background .1s, color .1s, border-color .1s;
+            flex-shrink:0;
+        }
+
+        .src-prop-btn:hover { background:#2a2a30; color:#c0c0cc; border-color:#3a3a42; }
+
+        .src-prop-extra-val {
+            font-size:10px; color:#666672; flex-shrink:0;
+            max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+        }
+        .source-btn.src-selected {
+            border-color:var(--blue);
+            background:rgba(59,130,246,.1);
+            color:#93c5fd;
+        }
+
+        .source-btn.src-locked {
+            border-color:#b45309;
+            background:rgba(180,83,9,.1);
+        }
+        .source-btn.src-locked .src-dot { background:#f59e0b; }
+        .src-prop-locked { color:#f59e0b; border-color:#b45309; }
+
+        /* Hidden sources tab show/hide buttons */
+        .src-vis-btn {
+            height:22px; padding:0 10px; font-size:10px;
+            border-radius:3px; border:1px solid var(--bdr);
+            background:var(--bg3); color:var(--dim); cursor:pointer;
+            transition:background .1s, color .1s, border-color .1s;
+        }
+        .src-vis-btn:hover   { background:var(--bg2); color:var(--text); }
+        .src-vis-btn.active-show { background:rgba(34,197,94,.15); border-color:#166534; color:#4ade80; }
+        .src-vis-btn.active-hide { background:rgba(239,68,68,.15); border-color:#7f1d1d; color:#f87171; }
+
+        body.vertical .sep            { width:24px; height:1px; margin:2px 0; }
+        body.vertical .gap            { flex:1; }
+        body.vertical .btn-label      { display:none; }
+        body.vertical .rec-time       { display:none; }
+        body.vertical #verTxt         { display:none; }
+        body.vertical .right-cluster #connDot { display:none; }
+
+        /* Stack GitHub + Settings vertically so they fit the 48px-wide rail */
+        body.vertical .right-cluster {
+            flex-direction:column; gap:4px;
+        }
+
+        /* Shrink the toggle-track so srcpre-toggle fits in a 34x34 chip */
+        body.vertical .toggle-track  { width:26px; height:14px; }
+        body.vertical .toggle-track::after { width:10px; height:10px; }
+        body.vertical .srcpre-toggle.pre-active .toggle-track::after { transform:translateX(12px); }
+
+        /* ── MINIMIZE BUTTONS (icon-only, any orientation) ── */
+        body.minimize-btns .btn-label,
+        body.minimize-btns .scene-btn-label,
+        body.minimize-btns .toggle-label,
+        body.minimize-btns .pre-label,
+        body.minimize-btns .rec-time {
+            display:none !important;
+        }
+
+        body.minimize-btns:not(.vertical) .toolbar .btn:not(.sq) { padding:0 8px; justify-content:center; }
+        body.minimize-btns:not(.vertical) .scene-btn {
+            padding:0 8px; gap:0; justify-content:center;
+        }
+        body.minimize-btns:not(.vertical) .srcpre-btn,
+        body.minimize-btns:not(.vertical) .srcpre-toggle {
+            padding:2px 8px; gap:4px; justify-content:center;
+        }
+        body.minimize-btns:not(.vertical) .srcpre-toggle .toggle-track { display:none; }
+
+
+/* ── BUTTONS ── */
+        .btn {
+            display:flex; align-items:center; gap:6px;
+            height:28px; padding:0 10px;
+            border:1px solid var(--bdr); border-radius:5px;
+            background:var(--bg2); color:var(--text);
+            font:inherit; font-size:12px; cursor:pointer;
+            transition:background .12s, border-color .12s;
+            white-space:nowrap; flex-shrink:0;
+        }
+
+        .btn:hover    { background:var(--bg3); border-color:#3f3f46; }
+        .btn:active   { transform:scale(.96); }
+        .btn.sq       { width:28px; padding:0; justify-content:center; }
+        .btn.active-btn { background:var(--bg3); border-color:#52525b; }
+
+        /* Only shrink buttons that actually live in the vertical toolbar rail —
+           buttons inside floating/settings windows (e.g. Connect) keep their
+           normal horizontal look. */
+        body.vertical .toolbar .btn    { width:34px; height:34px; padding:0; justify-content:center; border-radius:6px; }
+        body.vertical .toolbar .btn.sq { width:34px; height:34px; }
+
+
+/* Stream */
+        #btnStream.live              { border-color:var(--green); color:var(--green); }
+
+        @keyframes pulse {
+            0%,100% { box-shadow:0 0 5px var(--green); }
+            50%     { box-shadow:0 0 13px var(--green); }
+        }
+
+
+/* Record */
+        #btnRec.rec          { border-color:var(--red); color:var(--red); }
+
+        .rec-time {
+            font-family:'Consolas',monospace;
+            font-size:11px; letter-spacing:.5px; min-width:36px;
+        }
+
+
+/* Icons & Labels */
+        .btn-icon {
+            font-size:15px; line-height:1; flex-shrink:0;
+            display:flex; align-items:center; justify-content:center;
+        }
+
+        .btn-icon img { width:18px; height:18px; object-fit:contain; border-radius:3px; }
+        .btn-label    { font-size:12px; }
+
+        .custom-area {
+            display:flex; align-items:center; gap:4px; flex-shrink:0;
+        }
+
+        body.vertical .custom-area { flex-direction:column; }
+
+        .btn-cust {
+            font-size:11px; height:24px; padding:0 8px;
+            background:#2a2a30; color:#b0b0b8;
+            border:1px solid transparent; border-radius:3px;
+        }
+        .btn-cust:hover { background:#34343c; color:#e0e0e8; border-color:transparent; }
+
+        body.vertical .btn-cust { height:34px; width:34px; padding:0; }
+
+        /* On/off indicator dot for studio mode / vcam / replay buffer */
+        .btn-cust { position:relative; }
+        .cust-dot {
+            width:6px; height:6px; border-radius:50%;
+            background:#444450; flex-shrink:0;
+            transition:background .2s, box-shadow .2s;
+        }
+        .btn-cust.cust-on .cust-dot {
+            background:#4ade80; box-shadow:0 0 5px rgba(74,222,128,.8);
+        }
+        body.vertical .cust-dot {
+            position:absolute; top:4px; right:4px; width:5px; height:5px;
+        }
+
+
+/* Right Cluster */
+        .right-cluster {
+            display:flex; align-items:center; gap:5px; flex-shrink:0;
+        }
+
+        #connDot {
+            width:7px; height:7px;
+            border-radius:50%; background:var(--red);
+            flex-shrink:0; transition:background .3s; cursor:default;
+        }
+
+        #connDot.on { background:var(--green); box-shadow:0 0 5px var(--green); }
+
+        #verTxt {
+            font-size:9px; color:#3f3f46; letter-spacing:.3px; flex-shrink:0;
+        }
+
+        #connDotV {
+            display:none;
+            width:7px; height:7px;
+            border-radius:50%; background:var(--red);
+            transition:background .3s; cursor:default;
+        }
+
+        #connDotV.on { background:var(--green); box-shadow:0 0 5px var(--green); }
+
+        body.vertical #connDotV { display:flex; }
+
+
+/* ── FLOATING WINDOW ── */
+        .floatwin {
+            display:none; position:fixed; min-width:270px;
+            background:var(--bg2); border:1px solid var(--bdr); border-radius:8px;
+            box-shadow:0 8px 32px rgba(0,0,0,.65), 0 2px 8px rgba(0,0,0,.4);
+            z-index:1000; overflow:hidden; flex-direction:column;
+        }
+
+        .floatwin.open { display:flex; }
+
+        .fw-title {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:8px 10px; background:var(--bg3);
+            border-bottom:1px solid var(--bdr); cursor:move; flex-shrink:0;
+        }
+
+        .fw-title-txt {
+            font-size:11px; text-transform:uppercase;
+            letter-spacing:1px; color:var(--dim); font-weight:600;
+        }
+
+        .fw-close {
+            background:none; border:none; color:var(--dim);
+            cursor:pointer; font-size:16px; line-height:1;
+            padding:0 2px; transition:color .15s;
+        }
+
+        .fw-close:hover { color:var(--red); }
+
+        .fw-body {
+            padding:12px; display:flex; flex-direction:column; gap:9px;
+        }
+
+        .lbl {
+            font-size:11px; color:#ffffff; margin-bottom:2px;
+        }
+        .lbl > p {
+            font-size:10x; color:var(--dim); margin-top:4px;
+        }
+
+        .p-input, .p-sel {
+            width:100%; background:var(--bg); border:1px solid var(--bdr);
+            color:var(--text); font:inherit; font-size:12px;
+            padding:5px 8px; border-radius:5px; outline:none;
+        }
+
+        .p-input:focus, .p-sel:focus { border-color:var(--blue); }
+
+        .p-row     { display:flex; gap:6px; align-items:center; }
+        .btn-blue  { background:var(--blue); border-color:var(--blue); color:#fff; }
+        .btn-blue:hover { background:#2563eb; border-color:#2563eb; }
+        .btn-full  { width:100%; justify-content:center; font-size:12px; }
+
+        .icon-tabs { display:flex; gap:4px; margin-bottom:6px; }
+
+        .itab {
+            flex:1; height:26px; justify-content:center;
+            font-size:11px; border-radius:4px; padding:0;
+        }
+
+        .itab.active { background:var(--blue); border-color:var(--blue); color:#fff; }
+
+        .icon-preview {
+            width:38px; height:34px;
+            border:1px solid var(--bdr); border-radius:5px;
+            background:var(--bg); display:flex;
+            align-items:center; justify-content:center;
+            font-size:18px; flex-shrink:0; overflow:hidden;
+        }
+
+        .icon-preview.empty::after { content:'?'; color:var(--dim); font-size:14px; }
+        .icon-preview img           { width:24px; height:24px; object-fit:contain; }
+
+        .upload-zone {
+            width:100%; height:48px;
+            border:1px dashed var(--bdr); border-radius:5px;
+            display:flex; align-items:center; justify-content:center; gap:6px;
+            cursor:pointer; color:var(--dim); font-size:11px;
+            transition:border-color .15s, background .15s;
+        }
+
+        .upload-zone:hover { border-color:var(--blue); background:rgba(59,130,246,.06); color:var(--text); }
+
+        .saved {
+            display:flex; flex-direction:column; gap:3px;
+            max-height:100px; overflow-y:auto;
+        }
+
+        .s-item {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:4px 7px; background:var(--bg);
+            border:1px solid var(--bdr); border-radius:4px;
+        }
+
+        .s-tag {
+            font-size:9px; padding:1px 5px; border-radius:3px;
+            background:var(--bg3); color:var(--dim); margin-left:4px;
+        }
+
+        .s-del { background:none; border:none; color:var(--dim); cursor:pointer; font-size:13px; padding:0 3px; }
+        .s-del:hover { color:var(--red); }
+
+        #connTxt      { font-size:11px; text-align:center; color:var(--dim); }
+        #connTxt.ok   { color:var(--green); }
+        #connTxt.err  { color:var(--red); }
+
+        .hint {
+            font-size:10px; color:#3f3f46; line-height:1.6;
+            padding:6px 0 0; border-top:1px solid var(--bdr);
+        }
+
+        .fw-resize {
+            width:12px; height:12px;
+            position:absolute; bottom:3px; right:3px;
+            cursor:se-resize; opacity:.3;
+            background:linear-gradient(135deg, transparent 50%, var(--dim) 50%);
+        }
+
+        .orient-row { display:flex; gap:6px; }
+
+        .orient-btn {
+            flex:1; height:30px; justify-content:center;
+            font-size:11px; gap:5px;
+        }
+
+        .orient-btn.active { background:var(--blue); border-color:var(--blue); color:#fff; }
+
+
+/* Scene name dalam Add panel */
+        .scene-manual-row { display:flex; flex-direction:column; gap:4px; }
+        .scene-note       { font-size:10px; color:var(--dim); }
+
+        /* Preset saved list inside winSrcPre */
+        .pre-saved-list {
+            display:flex; flex-direction:column; gap:2px;
+            max-height:120px; overflow-y:auto;
+        }
+
+        .pre-s-item {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:4px 7px; background:var(--bg);
+            border:1px solid var(--bdr); border-radius:4px; gap:4px;
+        }
+
+        .pre-s-info {
+            display:flex; flex-direction:column; gap:1px; overflow:hidden; flex:1;
+        }
+
+        .pre-s-label { font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+        .pre-s-detail {
+            font-size:9px; color:var(--dim);
+            overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+        }
+
+        .pre-s-actions { display:flex; gap:3px; flex-shrink:0; }
+
+        .s-edit {
+            background:none; border:none; color:var(--dim);
+            cursor:pointer; font-size:12px; padding:0 3px;
+        }
+        .s-edit:hover { color:var(--blue); }
+        .s-del:hover  { color:var(--red); }
+
+        /* Confirmation inline */
+        .confirm-row {
+            display:flex; align-items:center; gap:6px;
+            padding:6px 8px; background:#1a1008;
+            border:1px solid #78350f; border-radius:5px;
+            font-size:11px; color:#fbbf24;
+        }
+
+        .confirm-row span { flex:1; }
+        .confirm-yes { background:#7f1d1d; border-color:#991b1b; color:#fca5a5; }
+        .confirm-yes:hover { background:#991b1b; }
+
+        /* ── UNIFIED SETTINGS WINDOW ── */
+        .settings-win {
+            width:480px; min-height:360px; max-height:80vh;
+            display:none; position:fixed; z-index:1000;
+            background:var(--bg2); border:1px solid var(--bdr);
+            border-radius:6px; box-shadow:0 8px 32px rgba(0,0,0,.7);
+            flex-direction:column; overflow:hidden;
+            resize:both;
+        }
+
+        .settings-win.open { display:flex; }
+
+        .sw-title {
+            display:flex; align-items:center;
+            padding:0 10px 0 12px; height:34px;
+            background:var(--bg3); border-bottom:1px solid var(--bdr);
+            cursor:grab; flex-shrink:0; user-select:none;
+        }
+
+        .sw-title span { flex:1; font-size:12px; font-weight:600; color:var(--text); }
+
+        .sw-body {
+            display:flex; flex:1; overflow:hidden;
+        }
+
+        /* Left nav */
+        .sw-nav {
+            display:flex; flex-direction:column;
+            width:120px; flex-shrink:0;
+            background:#141418;
+            border-right:1px solid var(--bdr);
+            padding:6px 0;
+            overflow-y:auto;
+        }
+
+        .sw-nav-item {
+            display:flex; align-items:center;
+            padding:8px 14px;
+            font:inherit; font-size:11px; color:var(--dim);
+            background:none; border:none; cursor:pointer;
+            text-align:left; border-left:2px solid transparent;
+            transition:color .1s, background .1s;
+            white-space:nowrap;
+        }
+
+        .sw-nav-item:hover    { background:var(--bg3); color:var(--text); }
+        .sw-nav-item.sw-act  {
+            color:var(--text); background:var(--bg2);
+            border-left-color:var(--blue);
+        }
+
+        /* Right content area */
+        .sw-content {
+            flex:1; overflow-y:auto; overflow-x:hidden;
+            padding:14px 16px; display:flex; flex-direction:column; gap:12px;
+        }
+
+        .sw-tab { display:flex; flex-direction:column; gap:10px; }
+        .sw-tab.sw-hidden { display:none; }
+
+
+        /* Saved list in settings */
+        .sw-saved {
+            display:flex; flex-direction:column; gap:2px;
+            max-height:160px; overflow-y:auto;
+        }
+
+        .sw-saved .s-item {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:4px 7px; background:var(--bg);
+            border:1px solid var(--bdr); border-radius:3px; gap:4px;
+        }
+        /* ── DRAG HANDLE & REORDER ── */
+        .drag-handle {
+            display:flex; align-items:center; justify-content:center;
+            width:16px; flex-shrink:0;
+            color:#3a3a48; cursor:grab; font-size:13px;
+            user-select:none; transition:color .1s;
+        }
+        .drag-handle:hover { color:#666672; }
+        .drag-handle:active { cursor:grabbing; }
+
+        .s-item.dragging { opacity:.4; }
+        .s-item.drag-over {
+            border-color:var(--blue);
+            background:rgba(59,130,246,.08);
+        }
+
+        /* ── EXCLUSIVE EDIT FLOAT WINDOW ── */
+        .excl-win {
+            display:none; position:fixed; z-index:1100;
+            width:300px; max-height:82vh;
+            background:var(--bg2); border:1px solid var(--bdr);
+            border-radius:6px; box-shadow:0 8px 32px rgba(0,0,0,.7);
+            flex-direction:column; overflow:hidden;
+        }
+        .excl-win.open { display:flex; }
+
+        .excl-title {
+            display:flex; align-items:center;
+            padding:0 10px 0 12px; height:32px;
+            background:var(--bg3); border-bottom:1px solid var(--bdr);
+            cursor:grab; flex-shrink:0; user-select:none;
+        }
+        .excl-title span { flex:1; font-size:11px; font-weight:600; color:var(--text); }
+
+        .excl-body {
+            overflow-y:auto; padding:12px; display:flex;
+            flex-direction:column; gap:8px;
+        }
+
+        /* ── SHORTCUT ── */
+        .sc-row {
+            display:flex; align-items:center; gap:8px;
+            padding:5px 7px; background:var(--bg);
+            border:1px solid var(--bdr); border-radius:4px;
+            margin-bottom:3px; flex-wrap:wrap;
+        }
+
+        .sc-left {
+            display:flex; align-items:center; gap:6px;
+            flex:1; min-width:100px; overflow:hidden;
+        }
+
+        .sc-label {
+            font-size:11px; overflow:hidden;
+            text-overflow:ellipsis; white-space:nowrap;
+        }
+
+        .sc-tag { flex-shrink:0; }
+
+        .sc-chips {
+            display:flex; flex-wrap:wrap; gap:4px; align-items:center; flex:1;
+        }
+
+        .sc-chip {
+            display:inline-flex; align-items:center; gap:3px;
+            padding:2px 6px; background:var(--bg3);
+            border:1px solid var(--bdr); border-radius:3px;
+            font-size:10px; color:var(--text); white-space:nowrap;
+            font-family:monospace;
+        }
+
+        .sc-chip-del {
+            background:none; border:none; cursor:pointer;
+            color:var(--dim); font-size:11px; padding:0;
+            line-height:1; margin-left:1px;
+        }
+        .sc-chip-del:hover { color:var(--red); }
+
+        .sc-add-btn {
+            width:22px; height:22px; border-radius:3px;
+            border:1px dashed var(--bdr); background:transparent;
+            color:var(--dim); font-size:14px; cursor:pointer;
+            transition:border-color .1s, color .1s, background .1s;
+            flex-shrink:0; display:flex; align-items:center; justify-content:center;
+        }
+
+        .sc-add-btn:hover    { border-color:#52525b; color:var(--text); }
+        .sc-add-btn.recording {
+            border-color:var(--red); color:var(--red);
+            background:rgba(239,68,68,.1);
+            animation:sc-pulse .6s infinite alternate;
+        }
+
+        @keyframes sc-pulse {
+            from { background:rgba(239,68,68,.05); }
+            to   { background:rgba(239,68,68,.2); }
+        }
+
+        #fileInput { display:none; }
+    </style>
+</head>
+
+<body>
+    <input type="file" id="fileInput" accept="image/*" onchange="handleFileUpload(event)">
+
+    <!-- TOOLBAR + SOURCE PANEL ROW (side-by-side in vertical mode) -->
+    <div id="vRow">
+    <!-- TOOLBAR -->
+    <div class="toolbar" id="toolbar">
+        <button class="btn btn-cust" id="btnStream" onclick="toggleStream()" title="Stream">
+            <span class="btn-icon"><iconify-icon icon="mdi:access-point"></iconify-icon></span>
+            <span class="btn-label" id="streamLbl">Start Streaming</span>
+        </button>
+        <button class="btn btn-cust" id="btnRec" onclick="toggleRecord()" title="Record">
+            <span class="btn-icon"><iconify-icon icon="mdi:record-circle-outline"></iconify-icon></span>
+            <span class="rec-time" id="recTime" style="display:none"></span>
+            <span class="btn-label" id="recLbl">Record</span>
+        </button>
+        <div class="sep"></div>
+        <div class="custom-area" id="custArea"></div>
+        <div class="sep"></div>
+        <!-- SCENE PANEL (scene btns + separator + preset btns) -->
+        <div class="scene-panel" id="scenePanel"></div>
+        <div class="gap"></div>
+        <div class="right-cluster">
+            <div id="connDot" title="Not connected"></div>
+            <span id="verTxt">v1.0.0-beta</span>
+            <!-- GitHub button: isi URL repo di bawah sebelum publish -->
+            <button class="btn sq" id="btnGithub" title="GitHub"
+                onclick="openLink('<!-- GITHUB_URL_HERE -->')"
+                style="padding:0 6px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.745 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                </svg>
+            </button>
+            <button class="btn sq" id="btnSet" onclick="openSettings()" title="Settings"><iconify-icon icon="mdi:cog-outline"></iconify-icon></button>
+        </div>
+        <!-- Vertical only — conn dot atas settings -->
+        <div id="connDotV" title="Not connected"></div>
+    </div>
+
+    <!-- SOURCE PANEL -->
+    <div class="source-panel" id="sourcePanel"></div>
+    </div>
+    <!-- SOURCE INFO BAR -->
+    <div class="src-prop-bar" id="srcPropBar"></div>
+
+    <!-- PRESET CONTEXT MENU -->
+    <div class="srcpre-ctx" id="preCtxMenu">
+        <button class="srcpre-ctx-item" id="ctxEdit"  onclick="ctxDoEdit()">✎ Edit</button>
+        <button class="srcpre-ctx-item ctx-del" id="ctxDel" onclick="ctxDoDel()">✕ Delete</button>
+    </div>
+
+    <!-- EXCLUSIVE EDIT FLOAT WINDOW -->
+    <div class="excl-win" id="winExclEdit">
+        <div class="excl-title" id="winExclEdit-drag">
+            <span id="exclEditTitle">Add Presets</span>
+            <button class="fw-close" onclick="closeExclEdit()">✕</button>
+        </div>
+        <div class="excl-body" id="exclEditBody"></div>
+    </div>
+
+    <!-- UNIFIED SETTINGS WINDOW -->
+    <div class="settings-win" id="winSettings">
+        <div class="sw-title" id="winSettings-drag">
+            <span>Settings</span>
+            <button class="fw-close" onclick="closeSettings()">✕</button>
+        </div>
+        <div class="sw-body">
+            <!-- LEFT NAV -->
+            <div class="sw-nav">
+                <button class="sw-nav-item sw-act" onclick="swTab('toolbar')">Toolbar</button>
+                <button class="sw-nav-item" onclick="swTab('scene')">Scene Panel</button>
+                <button class="sw-nav-item" onclick="swTab('exclusive')">Exclusive Panel</button>
+                <button class="sw-nav-item" onclick="swTab('hidsrc')">Hidden Sources</button>
+                <button class="sw-nav-item" onclick="swTab('shortcut')">Shortcut</button>
+                <button class="sw-nav-item" onclick="swTab('ws')">Websocket</button>
+            </div>
+
+            <!-- RIGHT CONTENT -->
+            <div class="sw-content">
+
+                <!-- ── TAB: TOOLBAR ── -->
+                <div class="sw-tab" id="tab-toolbar">
+                    <div>
+                        <div class="lbl">Position Layout</div>
+                        <div class="orient-row">
+                            <button class="btn orient-btn" id="btnAuto"  onclick="setOrientAuto()">Auto</button>
+                            <button class="btn orient-btn" id="btnHoriz" onclick="setOrient('horizontal')">Horizontal</button>
+                            <button class="btn orient-btn" id="btnVert"  onclick="setOrient('vertical')">Vertical</button>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--bdr);padding-top:10px">
+                        <div>
+                            <div class="lbl" style="margin-bottom:2px">Minimize Buttons</div>
+                            <div style="font-size:11px;color:#71717a">Hide text, show icon only</div>
+                        </div>
+                        <button class="btn orient-btn" id="btnMinimize" onclick="toggleMinimize()">Off</button>
+                    </div>
+                    <div style="border-top:1px solid var(--bdr);padding-top:10px">
+                        <div class="lbl" style="margin-bottom:8px">Add Button</div>
+                        <div>
+                            <div class="lbl"></div>
+                            <input class="p-input" id="inLabel" placeholder="Example: Scene A" maxlength="20">
+                        </div>
+                        <div>
+                            <div class="lbl">Functions</div>
+                            <select class="p-sel" id="inAction" onchange="onActionChange()">
+                                <option value="">-- select --</option>
+                                <option value="scene">Switch Scene</option>
+                                <option value="studio">Studio Mode</option>
+                                <option value="vcam">Virtual Camera</option>
+                                <option value="replay">Replay Buffer</option>
+                            </select>
+                        </div>
+                        <div id="sceneRow" style="display:none" class="scene-manual-row">
+                            <div class="lbl">Scene Name</div>
+                            <select class="p-sel" id="sceneList">
+                                <option value="">-- OBS not connected --</option>
+                            </select>
+                            <div class="scene-note">If OBS has not connected, type the name of the scene directly</div>
+                            <input class="p-input" id="sceneManual" placeholder="Type scene name (optional)">
+                        </div>
+                        <div>
+                            <div class="lbl">Icon (optional)</div>
+                            <div class="icon-tabs">
+                                <button class="btn itab active" id="tabEmoji" onclick="switchIconTab('emoji','btn')">Emojis</button>
+                                <button class="btn itab"        id="tabImg"   onclick="switchIconTab('img','btn')">Image</button>
+                            </div>
+                            <div id="paneEmoji" style="display:flex;gap:6px;align-items:center">
+                                <div class="icon-preview empty" id="emojiPreview"></div>
+                                <input class="p-input" id="inEmoji" placeholder="Paste emojis" maxlength="4" oninput="previewEmoji(this.value,'btn')">
+                            </div>
+                            <div id="paneImg" style="display:none">
+                                <div class="upload-zone" onclick="triggerUpload('btn')">
+                                    <span id="uploadTxt">Click to select image (PNG/JPG/SVG)</span>
+                                </div>
+                                <canvas id="resizeCanvas" style="display:none"></canvas>
+                            </div>
+                        </div>
+                        <div class="p-row">
+                            <button class="btn btn-blue" style="flex:1;justify-content:center" onclick="saveBtn()">Save</button>
+                            <button class="btn"          style="flex:1;justify-content:center" onclick="resetAddForm()">Cancel</button>
+                        </div>
+                    </div>
+                    <div style="border-top:1px solid var(--bdr);padding-top:10px">
+                        <div class="lbl" style="margin-bottom:6px">Saved Button</div>
+                        <div id="savedWrap"></div>
+                    </div>
+                </div>
+
+                <!-- ── TAB: SCENE PANEL ── -->
+                <div class="sw-tab sw-hidden" id="tab-scene">
+                    <div class="lbl">Scene Panel</div>
+                    <div style="font-size:11px;color:var(--dim);line-height:1.6">
+                        Scene button are managed from tabs<b style="color:var(--text)">Toolbar</b> — select function <b style="color:var(--text)">Switch Scene</b> to add scene buttons.
+                    </div>
+                    <div style="border-top:1px solid var(--bdr);padding-top:10px">
+                        <div class="lbl" style="margin-bottom:6px">Saved Button Scene</div>
+                        <div id="sceneSavedWrap"></div>
+                    </div>
+                </div>
+
+                <!-- ── TAB: EXCLUSIVE PANEL ── -->
+                <div class="sw-tab sw-hidden" id="tab-exclusive">
+                    <div style="display:flex;align-items:center;justify-content:space-between">
+                        <div class="lbl">Exclusive Presets</div>
+                        <button class="btn btn-blue" style="height:24px;padding:0 10px;font-size:11px"
+                            onclick="openExclEdit(null)">+ Add</button>
+                    </div>
+                    <div id="preSavedWrap"></div>
+                </div>
+
+                <!-- ── TAB: WEBSOCKET ── -->
+                <div class="sw-tab sw-hidden" id="tab-ws">
+                    <div class="lbl">Websocket — OBS 32
+                        <p>Please connect your websocket OBS before proceeding.</p>
+                    </div>
+                    <div>
+                        <div class="lbl">IP
+                            <p>Your server ip address</p>
+                        </div>
+                        <input class="p-input" id="wsHost" value="localhost">
+                    </div>
+                    <div>
+                        <div class="lbl">Port
+                            <p>Your server port</p>
+                        </div>
+                        <input class="p-input" id="wsPort" value="4455">
+                    </div>
+                    <div>
+                        <div class="lbl">Password
+                            <p>Your server password</p>
+                        </div>
+                        <input class="p-input" id="wsPass" type="password" placeholder="••••••">
+                    </div>
+                    <button class="btn btn-blue btn-full" onclick="doConnect()">Connect</button>
+                    <div id="connTxt">Not connected</div>
+                    <div class="hint">OBS → <b>Tools</b> → <b>WebSocket Server Settings</b><br>→ <b>Enable WebSocket Server</b> → Apply</div>
+                </div>
+
+                <!-- ── TAB: HIDDEN SOURCES ── -->
+                <div class="sw-tab sw-hidden" id="tab-hidsrc">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                        <div class="lbl">Hide Sources</div>
+                    </div>
+                    <div style="font-size:10px;color:var(--dim);margin-bottom:10px;line-height:1.5">
+                        Select a scene and specify which sources to <b style="color:var(--text)">hide</b> or <b style="color:var(--text)">show</b> in the toolbar panel.
+                    </div>
+                    <div>
+                        <div class="lbl">Scene</div>
+                        <select class="p-sel" id="hidSrcScene" onchange="loadHidSrcList(this.value)">
+                            <option value="">-- Select scene --</option>
+                        </select>
+                    </div>
+                    <div id="hidSrcList" style="margin-top:8px"></div>
+                </div>
+
+                <!-- ── TAB: SHORTCUT ── -->
+                <div class="sw-tab sw-hidden" id="tab-shortcut">
+                    <div class="lbl">Keyboard Shortcut</div>
+                    <div style="font-size:10px;color:var(--dim);margin-bottom:8px;line-height:1.5">
+                        Click on the shortcut box and press the desired key. Press <b style="color:var(--text)">Backspace</b> to clear the shortcut.
+                    </div>
+                    <div id="shortcutList"></div>
+                </div>
+
+            </div><!-- /.sw-content -->
+        </div><!-- /.sw-body -->
+    </div>
+
+    <script>
+    // ── STATE ─────────────────────────────────────────
+    let obs = null, streaming = false, recording = false;
+    let recSec = 0, recTick = null;
+    let custBtns = [];
+    let wsCfg = { host:'localhost', port:'4455', pass:'' };
+    let orientation = 'horizontal';
+    let autoOrient  = true;
+    let minimizeBtns = false;
+    // On/off indicator state for studio mode, virtual cam, replay buffer
+    let liveStates = { studio: false, vcam: false, replay: false };
+    let pendingIcon = null;
+    let iconTab = 'emoji';
+    let pendingPreIcon = null;
+    let preIconTab = 'emoji';
+    let uploadCtx = 'btn';
+    let currentScene = '';
+    let sourceItems  = [];   // { sceneItemId, sourceName, enabled }
+    let srcPresets   = [];   // { id, label, showNames:[], hideNames:[] }
+    let shortcuts    = {};   // { btnId: 'F24', preId: 'F1', ... }
+    let srcHiddenRules = {}; // { 'SceneName': { 'SourceName': 'hide' } }
+    let srcLockedBtns  = {}; // { 'SceneName': { sceneItemId: true } } — local lock only
+
+
+    // ── STORAGE (robust untuk OBS CEF) ───────────────
+    function storeSave(key, val) {
+        try {
+            localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+            return true;
+        } catch(e) { return false; }
+    }
+
+    function storeLoad(key, def) {
+        try {
+            const v = localStorage.getItem(key);
+            if (v === null || v === undefined) return def;
+            try { return JSON.parse(v); } catch(e) { return v; }
+        } catch(e) { return def; }
+    }
+
+
+    // ── BOOT ──────────────────────────────────────────
+    window.onload = () => {
+        custBtns   = storeLoad('obs_tb_btns', []);
+        srcPresets = storeLoad('obs_tb_srcpre', []);
+        shortcuts      = storeLoad('obs_tb_sc', {});
+        srcHiddenRules = storeLoad('obs_tb_hidrules', {});
+        srcLockedBtns  = storeLoad('obs_tb_lockedbtns', {});
+        wsCfg      = storeLoad('obs_tb_ws', { host:'localhost', port:'4455', pass:'' });
+        autoOrient = storeLoad('obs_tb_auto', true);
+        orientation = autoOrient
+            ? detectOrient()
+            : storeLoad('obs_tb_orient', 'horizontal');
+        minimizeBtns = storeLoad('obs_tb_minimize', false);
+
+        // Ensure custBtns is always an array
+        if (!Array.isArray(custBtns)) custBtns = [];
+
+        document.getElementById('wsHost').value = wsCfg.host || 'localhost';
+        document.getElementById('wsPort').value = wsCfg.port || '4455';
+        document.getElementById('wsPass').value = wsCfg.pass || '';
+
+        applyOrient(orientation, false);
+        applyMinimize();
+        renderAll();
+        doConnect(true);
+        initDrag('winSettings', 'winSettings-drag');
+        initDrag('winExclEdit', 'winExclEdit-drag');
+
+        // Auto-detect semasa window resize
+        const ro = new ResizeObserver(() => {
+            if (!autoOrient) return;
+            const next = detectOrient();
+            if (next !== orientation) { orientation = next; applyOrient(next, false); }
+        });
+        ro.observe(document.documentElement);
+    };
+
+
+    function renderAll() {
+        renderToolbarBtns();
+        renderScenePanel();
+        renderSaved();
+        renderSceneSaved();
+    }
+
+    function renderToolbarBtns() {
+        const btns = custBtns.filter(b => b.action !== 'scene');
+        document.getElementById('custArea').innerHTML = btns.map(b => `
+            <button class="btn btn-cust" id="cbtn-${b.id}" onclick="fireBtn(${b.id})" title="${esc(b.label)}">
+                ${renderIconHtml(b.icon, b.action)}<span class="btn-label">${esc(b.label)}</span>
+                ${['studio','vcam','replay'].includes(b.action) ? '<span class="cust-dot"></span>' : ''}
+            </button>`
+        ).join('');
+        updateCustIndicators();
+    }
+
+    // Reflect liveStates (studio mode / virtual cam / replay buffer) as a glowing dot
+    function updateCustIndicators() {
+        custBtns.forEach(b => {
+            if (!['studio','vcam','replay'].includes(b.action)) return;
+            const el = document.getElementById('cbtn-' + b.id);
+            if (el) el.classList.toggle('cust-on', !!liveStates[b.action]);
+        });
+    }
+
+    function renderScenePanel() {
+        const sceneBtns = custBtns.filter(b => b.action === 'scene');
+        const sceneHtml = sceneBtns.map(b => `
+            <button class="scene-btn" id="sbtn-${b.id}" onclick="fireBtn(${b.id})" title="${esc(b.label)}">
+                ${renderIconHtml(b.icon, b.action)}<span class="scene-btn-label">${esc(b.label)}</span>
+            </button>`
+        ).join('');
+
+        const preSep  = srcPresets.length ? `<div class="scene-pre-sep">Preset</div>` : '';
+        const preBtns = srcPresets.map(p => {
+            const state = getSrcPreState(p);
+            const cls   = state === 'active' ? 'pre-active' : state === 'hidden' ? 'pre-hidden' : '';
+            const tip   = `SHOW: ${p.showNames.join(', ')}\nHIDE: ${p.hideNames.join(', ')}`;
+
+            if (p.displayStyle === 'toggle') {
+                return `
+                    <span class="srcpre-toggle ${cls}" id="spreBtn-${p.id}"
+                        onmousedown="preHoldStart(event,${p.id})"
+                        onmouseup="preHoldEnd(event,${p.id})"
+                        onmouseleave="preHoldCancel()"
+                        ontouchstart="preHoldStart(event,${p.id})"
+                        ontouchend="preHoldEnd(event,${p.id})"
+                        title="${esc(tip).replace(/\n/g,'&#10;')}">
+                        ${renderIconHtml(p.icon, 'preset', 'pre-icon')}
+                        <div class="toggle-track"></div>
+                        <span class="toggle-label">${esc(p.label)}</span>
+                    </span>`;
+            } else {
+                return `
+                    <button class="srcpre-btn ${cls}" id="spreBtn-${p.id}"
+                        onmousedown="preHoldStart(event,${p.id})"
+                        onmouseup="preHoldEnd(event,${p.id})"
+                        onmouseleave="preHoldCancel()"
+                        ontouchstart="preHoldStart(event,${p.id})"
+                        ontouchend="preHoldEnd(event,${p.id})"
+                        title="${esc(tip).replace(/\n/g,'&#10;')}">
+                        ${renderIconHtml(p.icon, 'preset', 'pre-icon')}
+                        <span class="pre-dot"></span>
+                        <span class="pre-label">${esc(p.label)}</span>
+                    </button>`;
+            }
+        }).join('');
+
+        const panel = document.getElementById('scenePanel');
+        panel.innerHTML = sceneHtml + preSep + preBtns;
+
+        highlightScene(currentScene);
+    }
+
+    // renderSrcPrePanel now just delegates to renderScenePanel
+    function renderSrcPrePanel() { renderScenePanel(); }
+
+    // ── PRESET HOLD → PROP BAR ────────────────────────
+    let _preHoldTimer  = null;
+    let _preHoldFired  = false;   // true = hold triggered, suppress click
+
+    function preHoldStart(e, preId) {
+        if (e.button !== undefined && e.button !== 0) return;
+        preHoldCancel();
+        _preHoldFired = false;
+        _preHoldTimer = setTimeout(() => {
+            _preHoldTimer = null;
+            _preHoldFired = true;   // mark: hold fired, skip click on release
+            const p = srcPresets.find(x => x.id === preId); if (!p) return;
+            const srcName = p.propSource || p.showNames[0] || p.hideNames[0];
+            if (!srcName) return;
+            const item = sourceItems.find(i => i.sourceName === srcName);
+            if (item) {
+                fetchAndShowPropBar(item.sceneItemId);
+            } else if (obs) {
+                const bar = document.getElementById('srcPropBar'); if (!bar) return;
+                bar.innerHTML = '<span class="src-prop-name">' + esc(srcName) + '</span>'
+                    + '<div class="src-prop-sep"></div>'
+                    + '<button class="src-prop-btn" onclick="obs.req(\'OpenInputPropertiesDialog\',{inputName:\''
+                    + esc(srcName) + '\'})">&#9881; Properties</button>'
+                    + '<button class="src-prop-btn" onclick="obs.req(\'OpenInputFiltersDialog\',{inputName:\''
+                    + esc(srcName) + '\'})">&#9641; Filters</button>';
+                bar.classList.add('visible');
+            }
+        }, 500);
+    }
+
+    function preHoldEnd(e, preId) {
+        if (_preHoldTimer) {
+            // Timer still running = short click → fire preset
+            clearTimeout(_preHoldTimer);
+            _preHoldTimer = null;
+            if (!_preHoldFired) fireSrcPre(preId);
+        }
+        // If _preHoldFired = true, hold already triggered — do nothing
+        _preHoldFired = false;
+    }
+
+    function preHoldCancel() {
+        if (_preHoldTimer) { clearTimeout(_preHoldTimer); _preHoldTimer = null; }
+        _preHoldFired = false;
+    }
+
+    function renderSaved() {
+        const wrap = document.getElementById('savedWrap'); if (!wrap) return;
+        const nonScene = custBtns.filter(b => b.action !== 'scene');
+        const labels = { scene:'Scene', studio:'Studio Mode', vcam:'Virtual Cam', replay:'Replay Buffer' };
+        if (!nonScene.length) { wrap.innerHTML = '<div style="font-size:11px;color:var(--dim)">Tiada button lagi.</div>'; return; }
+        wrap.innerHTML = `<div class="saved" id="savedList">${nonScene.map(b => `
+            <div class="s-item" draggable="true" data-id="${b.id}" id="sitem-${b.id}"
+                ondragstart="dragStart(event,'btn')" ondragover="dragOver(event)" ondrop="dragDrop(event,'btn')" ondragleave="dragLeave(event)">
+                <span class="drag-handle">⠿</span>
+                <div style="display:flex;align-items:center;gap:4px;overflow:hidden;flex:1">
+                    ${b.icon?.type==='emoji'?`<span style="font-size:13px">${esc(b.icon.value)}</span>`:b.icon?.type==='img'?`<img src="${b.icon.value}" style="width:14px;height:14px;object-fit:contain">`:''}
+                    <span style="font-size:11px">${esc(b.label)}</span>
+                    <span class="s-tag">${labels[b.action]||b.action}</span>
+                </div>
+                <div style="display:flex;gap:2px;flex-shrink:0">
+                    <button class="s-edit" onclick="openBtnEdit(${b.id})" title="Edit">✎</button>
+                    <button class="s-del"  onclick="confirmDelBtn(${b.id})" title="Delete">✕</button>
+                </div>
+            </div>`).join('')}</div>`;
+    }
+
+    let editingBtnId = null;
+
+    function confirmDelBtn(id) {
+        const item = document.getElementById('sitem-' + id); if (!item) return;
+        const b = custBtns.find(x => x.id === id); if (!b) return;
+        item.innerHTML = `<div class="confirm-row" style="width:100%">
+            <span>Delete "${esc(b.label)}"?</span>
+            <button class="btn confirm-yes" style="height:22px;padding:0 8px;font-size:10px" onclick="delBtn(${id})">Delete</button>
+            <button class="btn" style="height:22px;padding:0 8px;font-size:10px" onclick="renderSaved();renderSceneSaved()">Cancel</button>
+        </div>`;
+    }
+
+    function confirmDelSrcPre(id) {
+        const p = srcPresets.find(x => x.id === id); if (!p) return;
+        const item = document.getElementById('psitem-' + id); if (!item) return;
+        item.innerHTML = `<div class="confirm-row" style="width:100%">
+            <span>Delete "${esc(p.label)}"?</span>
+            <button class="btn confirm-yes" style="height:22px;padding:0 8px;font-size:10px" onclick="delSrcPre(${id})">Delete</button>
+            <button class="btn" style="height:22px;padding:0 8px;font-size:10px" onclick="renderPresetsaved()">Cancel</button>
+        </div>`;
+    }
+
+    function renderPresetsaved() {
+        const wrap = document.getElementById('preSavedWrap'); if (!wrap) return;
+        if (!srcPresets.length) { wrap.innerHTML = '<div style="font-size:11px;color:var(--dim)">No presets saved.</div>'; return; }
+        wrap.innerHTML = `<div class="pre-saved-list" id="preSavedList">${srcPresets.map(p => `
+            <div class="pre-s-item" draggable="true" data-id="${p.id}" id="psitem-${p.id}"
+                ondragstart="dragStart(event,'pre')" ondragover="dragOver(event)" ondrop="dragDrop(event,'pre')" ondragleave="dragLeave(event)">
+                <span class="drag-handle">⠿</span>
+                <div class="pre-s-info">
+                    <span class="pre-s-label">${esc(p.label)}</span>
+                    <span class="pre-s-detail">${p.showNames.length?'▶ '+p.showNames.join(', '):''}${p.hideNames.length?' ✕ '+p.hideNames.join(', '):''}</span>
+                </div>
+                <div class="pre-s-actions">
+                    <button class="s-edit" onclick="openExclEdit(${p.id})" title="Edit">✎</button>
+                    <button class="s-del"  onclick="confirmDelSrcPre(${p.id})" title="Delete">✕</button>
+                </div>
+            </div>`).join('')}</div>`;
+    }
+
+    function renderSceneSaved() {
+        const wrap = document.getElementById('sceneSavedWrap'); if (!wrap) return;
+        const sceneBtns = custBtns.filter(b => b.action === 'scene');
+        if (!sceneBtns.length) { wrap.innerHTML = '<div style="font-size:11px;color:var(--dim)">No scene buttons saved.</div>'; return; }
+        wrap.innerHTML = `<div class="saved" id="sceneSavedList">${sceneBtns.map(b => `
+            <div class="s-item" draggable="true" data-id="${b.id}" id="sitem-${b.id}"
+                ondragstart="dragStart(event,'btn')" ondragover="dragOver(event)" ondrop="dragDrop(event,'btn')" ondragleave="dragLeave(event)">
+                <span class="drag-handle">⠿</span>
+                <div style="display:flex;align-items:center;gap:4px;overflow:hidden;flex:1">
+                    ${b.icon?.type==='emoji'?`<span style="font-size:13px">${esc(b.icon.value)}</span>`:b.icon?.type==='img'?`<img src="${b.icon.value}" style="width:14px;height:14px;object-fit:contain">`:'<span style="color:var(--dim)">●</span>'}
+                    <span style="font-size:11px">${esc(b.label)}</span>
+                    <span class="s-tag">Scene</span>
+                </div>
+                <div style="display:flex;gap:2px;flex-shrink:0">
+                    <button class="s-edit" onclick="openBtnEdit(${b.id})" title="Edit">✎</button>
+                    <button class="s-del"  onclick="confirmDelBtn(${b.id})" title="Delete">✕</button>
+                </div>
+            </div>`).join('')}</div>`;
+    }
+
+
+    // ── DRAG REORDER ─────────────────────────────────
+    let dragSrcId = null, dragType = null;
+
+    function dragStart(e, type) {
+        dragSrcId = parseInt(e.currentTarget.dataset.id);
+        dragType  = type;
+        e.currentTarget.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function dragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        e.currentTarget.classList.add('drag-over');
+    }
+
+    function dragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+
+    function dragDrop(e, type) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag-over');
+        const targetId = parseInt(e.currentTarget.dataset.id);
+        if (dragSrcId === targetId || dragType !== type) return;
+        if (type === 'btn') {
+            const from = custBtns.findIndex(b => b.id === dragSrcId);
+            const to   = custBtns.findIndex(b => b.id === targetId);
+            if (from < 0 || to < 0) return;
+            const [moved] = custBtns.splice(from, 1);
+            custBtns.splice(to, 0, moved);
+            storeSave('obs_tb_btns', custBtns);
+            renderAll();
+        } else {
+            const from = srcPresets.findIndex(p => p.id === dragSrcId);
+            const to   = srcPresets.findIndex(p => p.id === targetId);
+            if (from < 0 || to < 0) return;
+            const [moved] = srcPresets.splice(from, 1);
+            srcPresets.splice(to, 0, moved);
+            storeSave('obs_tb_srcpre', srcPresets);
+            renderScenePanel();
+            renderPresetsaved();
+        }
+        dragSrcId = null; dragType = null;
+    }
+
+
+    // ── BUTTON EDIT FLOAT WINDOW ─────────────────────
+    function openBtnEdit(id) {
+        const b = custBtns.find(x => x.id === id); if (!b) return;
+        editingBtnId = id;
+        let win = document.getElementById('winBtnEdit');
+        if (!win) {
+            win = document.createElement('div');
+            win.id = 'winBtnEdit';
+            win.className = 'excl-win';
+            win.innerHTML = `
+                <div class="excl-title" id="winBtnEdit-drag">
+                    <span>Edit Button</span>
+                    <button class="fw-close" onclick="closeBtnEdit()">✕</button>
+                </div>
+                <div class="excl-body" id="btnEditBody"></div>`;
+            document.body.appendChild(win);
+            initDrag('winBtnEdit', 'winBtnEdit-drag');
+        }
+        const labels = { scene:'Switch Scene', studio:'Studio Mode', vcam:'Virtual Camera', replay:'Replay Buffer' };
+
+        const sceneOpts = b.action === 'scene' ? `
+            <div style="margin-top:6px">
+                <div class="lbl">Scene</div>
+                <select class="p-sel" id="beSceneSelect">
+                    <option value="${esc(b.scene||'')}">Loading…</option>
+                </select>
+            </div>` : '';
+
+        const iconHtml = b.icon?.type === 'emoji'
+            ? `<input class="p-input" id="beEmoji" value="${esc(b.icon.value)}" maxlength="4" placeholder="Emoji">`
+            : b.icon?.type === 'img'
+            ? `<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dim)"><img src="${b.icon.value}" style="width:20px;height:20px;border-radius:3px"> Saved Image</div>`
+            : `<input class="p-input" id="beEmoji" value="" maxlength="4" placeholder="Paste Emoji">`;
+        document.getElementById('btnEditBody').innerHTML = `
+            <div>
+                <div class="lbl">Label</div>
+                <input class="p-input" id="beLabel" value="${esc(b.label)}" maxlength="20">
+            </div>
+            <div style="margin-top:6px">
+                <div class="lbl">Function: <span style="color:var(--text)">${labels[b.action]||b.action}</span></div>
+            </div>
+            ${sceneOpts}
+            <div style="margin-top:6px">
+                <div class="lbl">Emoji / Icon</div>
+                ${iconHtml}
+            </div>
+            <div class="p-row" style="margin-top:10px">
+                <button class="btn btn-blue" style="flex:1;justify-content:center" onclick="saveBtnEdit()">Update</button>
+                <button class="btn" style="flex:1;justify-content:center" onclick="closeBtnEdit()">Cancel</button>
+            </div>`;
+        win.classList.add('open');
+
+        // Populate scene dropdown if OBS is connected
+        if (b.action === 'scene' && obs) {
+            obs.req('GetSceneList').then(res => {
+                const sel = document.getElementById('beSceneSelect'); if (!sel) return;
+                const scenes = (res.scenes || []).reverse();
+                sel.innerHTML = '<option value="">-- Select Scene --</option>' +
+                    scenes.map(s => `<option value="${esc(s.sceneName)}"${s.sceneName===b.scene?' selected':''}>${esc(s.sceneName)}</option>`).join('');
+            }).catch(() => {});
+        }
+
+        const ref = document.getElementById('sitem-' + id)
+                 || document.getElementById('swrap-' + id)
+                 || document.getElementById('sbtn-'  + id)
+                 || document.getElementById('btnSet');
+        if (ref) {
+            const r = ref.getBoundingClientRect();
+            const ww = window.innerWidth, wh = window.innerHeight;
+            requestAnimationFrame(() => {
+                const winW = win.offsetWidth || 280, winH = win.offsetHeight || 240;
+                let left = r.right + 8;
+                if (left + winW > ww - 4) left = r.left - winW - 8;
+                if (left < 4) left = 4;
+                let top = r.top;
+                if (top + winH > wh - 4) top = wh - winH - 4;
+                if (top < 4) top = 4;
+                win.style.left = left + 'px';
+                win.style.top  = top  + 'px';
+            });
+        }
+    }
+
+    function closeBtnEdit() {
+        editingBtnId = null;
+        const w = document.getElementById('winBtnEdit');
+        if (w) w.classList.remove('open');
+    }
+
+    function saveBtnEdit() {
+        const b = custBtns.find(x => x.id === editingBtnId); if (!b) return;
+        const label = document.getElementById('beLabel').value.trim();
+        if (!label) { alert('Please enter a label.'); return; }
+        b.label = label;
+        const emojiEl = document.getElementById('beEmoji');
+        if (emojiEl && emojiEl.value.trim()) b.icon = { type:'emoji', value: emojiEl.value.trim() };
+        const sceneEl = document.getElementById('beSceneSelect');
+        if (sceneEl) b.scene = sceneEl.value;
+        storeSave('obs_tb_btns', custBtns);
+        closeBtnEdit();
+        renderAll();
+    }
+
+
+    // ── EXCLUSIVE EDIT FLOAT WINDOW ──────────────────
+    function openExclEdit(editId) {
+        editingPreId = editId ?? null;
+        const win = document.getElementById('winExclEdit');
+        document.getElementById('exclEditTitle').textContent = editId ? 'Edit Presets' : 'Add Presets';
+        renderExclForm();
+        win.classList.add('open');
+        const ref = editId
+            ? document.getElementById('psitem-' + editId)
+            : document.querySelector('#preSavedWrap') || document.getElementById('btnSet');
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            const ww = window.innerWidth, wh = window.innerHeight;
+            const winW = win.offsetWidth||300, winH = win.offsetHeight||400;
+            const GAP = 8;
+            const r = ref ? ref.getBoundingClientRect() : {right: ww/2, top: wh/2, left: ww/2};
+            let left = r.right + GAP;
+            let top  = r.top;
+            if (left + winW > ww - GAP) left = r.left - winW - GAP;
+            if (left < GAP) left = GAP;
+            if (top + winH > wh - GAP) top = wh - winH - GAP;
+            if (top < GAP) top = GAP;
+            win.style.left = left + 'px';
+            win.style.top  = top  + 'px';
+        }));
+    }
+
+    function closeExclEdit() {
+        editingPreId = null;
+        document.getElementById('winExclEdit').classList.remove('open');
+    }
+
+    async function renderExclForm() {
+        const editing  = editingPreId ? srcPresets.find(p => p.id === editingPreId) : null;
+        const curStyle = editing?.displayStyle || 'button';
+
+        // Fetch all scenes from OBS
+        let allScenes = [];
+        if (obs) {
+            const res = await obs.req('GetSceneList').catch(() => ({}));
+            allScenes = ((res.scenes || []).reverse()).map(s => s.sceneName);
+        }
+
+        // Which scene to show sources for — use preset's scene or current scene
+        const targetScene = editing?.sceneName || currentScene || allScenes[0] || '';
+
+        const body = document.getElementById('exclEditBody');
+        if (!body) return;
+
+        if (!obs || !allScenes.length) {
+            body.innerHTML = `<div style="color:var(--dim);font-size:11px">Connect to OBS to display scene and source lists.</div>
+                <button class="btn" style="margin-top:8px" onclick="closeExclEdit()">Close</button>`;
+            return;
+        }
+
+        const sceneOpts = allScenes.map(s =>
+            `<option value="${esc(s)}" ${s === targetScene ? 'selected' : ''}>${esc(s)}</option>`
+        ).join('');
+
+        const onChange = `this.closest('.style-row').querySelectorAll('label').forEach(l=>{const r=l.querySelector('input');l.style.background=r.checked?'var(--blue)':'var(--bg3)';l.style.color=r.checked?'#fff':'var(--dim)'})`;
+
+        body.innerHTML = `
+            <div>
+                <div class="lbl">Label</div>
+                <input class="p-input" id="exLabel" value="${editing ? esc(editing.label) : ''}" placeholder="e.g., Camera A" maxlength="20">
+            </div>
+            <div style="margin-top:6px">
+                <div class="lbl">Icon (optional)</div>
+                <div class="icon-tabs">
+                    <button class="btn itab active" id="exTabEmoji" onclick="switchIconTab('emoji','pre')">Emojis</button>
+                    <button class="btn itab"        id="exTabImg"   onclick="switchIconTab('img','pre')">Image</button>
+                </div>
+                <div id="exPaneEmoji" style="display:flex;gap:6px;align-items:center">
+                    <div class="icon-preview empty" id="exEmojiPreview"></div>
+                    <input class="p-input" id="exInEmoji" placeholder="Paste emoji" maxlength="4" oninput="previewEmoji(this.value,'pre')">
+                </div>
+                <div id="exPaneImg" style="display:none">
+                    <div class="upload-zone" onclick="triggerUpload('pre')">
+                        <span id="exUploadTxt">Click to select image (PNG/JPG/SVG)</span>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top:6px">
+                <div class="lbl">Scene</div>
+                <select class="p-sel" id="exScene" onchange="loadExclSources(this.value)">
+                    ${sceneOpts}
+                </select>
+            </div>
+            <div style="margin-top:6px">
+                <div class="lbl">Display Type</div>
+                <div class="style-row" style="display:flex;gap:5px">
+                    <label style="display:flex;align-items:center;justify-content:center;cursor:pointer;
+                        padding:4px 8px;border-radius:4px;border:1px solid var(--bdr);flex:1;font-size:11px;
+                        background:${curStyle==='button'?'var(--blue)':'var(--bg3)'};color:${curStyle==='button'?'#fff':'var(--dim)'}">
+                        <input type="radio" name="exStyle" value="button" ${curStyle==='button'?'checked':''} style="display:none" onchange="${onChange}">
+                        ⬜ Button
+                    </label>
+                    <label style="display:flex;align-items:center;justify-content:center;cursor:pointer;
+                        padding:4px 8px;border-radius:4px;border:1px solid var(--bdr);flex:1;font-size:11px;
+                        background:${curStyle==='toggle'?'var(--blue)':'var(--bg3)'};color:${curStyle==='toggle'?'#fff':'var(--dim)'}">
+                        <input type="radio" name="exStyle" value="toggle" ${curStyle==='toggle'?'checked':''} style="display:none" onchange="${onChange}">
+                        ⬬ Toggle
+                    </label>
+                </div>
+            </div>
+            <div style="margin-top:8px">
+                <div class="lbl" style="color:var(--green)">▶ SHOW when active</div>
+                <div id="exShowList" style="display:flex;flex-direction:column;gap:1px;max-height:100px;overflow-y:auto;
+                    padding:4px 6px;background:var(--bg3);border-radius:4px;border:1px solid var(--bdr)">
+                    <div style="font-size:10px;color:var(--dim)">Loading sources…</div>
+                </div>
+            </div>
+            <div style="margin-top:6px">
+                <div class="lbl" style="color:var(--red)">✕ AUTO-HIDE when active</div>
+                <div id="exHideList" style="display:flex;flex-direction:column;gap:1px;max-height:100px;overflow-y:auto;
+                    padding:4px 6px;background:var(--bg3);border-radius:4px;border:1px solid var(--bdr)">
+                    <div style="font-size:10px;color:var(--dim)">Loading sources…</div>
+                </div>
+            </div>
+            <div style="margin-top:8px">
+                <div class="lbl">&#128065; Source for Properties (when held)</div>
+                <select class="p-sel" id="exPropSource">
+                    <option value="">-- Auto (first source) --</option>
+                </select>
+                <div style="font-size:10px;color:var(--dim);margin-top:2px">
+                    Select the source that will open Properties/Filters when the button is hold.
+                </div>
+            </div>
+            <div class="p-row" style="margin-top:10px">
+                <button class="btn btn-blue" style="flex:1;justify-content:center" onclick="saveExclEdit()">
+                    ${editing ? 'Update' : 'Save'}
+                </button>
+                <button class="btn" style="flex:1;justify-content:center" onclick="closeExclEdit()">Cancel</button>
+            </div>`;
+
+        // Initialize the icon picker for this preset (or reset for a new one)
+        pendingPreIcon = null;
+        preIconTab = (editing?.icon?.type === 'img') ? 'img' : 'emoji';
+        switchIconTab(preIconTab, 'pre');
+        if (editing?.icon?.type === 'emoji') {
+            document.getElementById('exInEmoji').value = editing.icon.value;
+            previewEmoji(editing.icon.value, 'pre');
+        } else if (editing?.icon?.type === 'img') {
+            pendingPreIcon = editing.icon;
+            document.getElementById('exUploadTxt').innerHTML =
+                `<img src="${editing.icon.value}" style="width:20px;height:20px;border-radius:3px"> <span>Image set</span>`;
+        } else {
+            document.getElementById('exInEmoji').value = '';
+            document.getElementById('exUploadTxt').innerHTML = 'Click to select image (PNG/JPG/SVG)';
+        }
+
+        // Load sources for selected scene
+        await loadExclSources(targetScene);
+    }
+
+    // Fetch sources for a scene and populate show/hide checkboxes
+    async function loadExclSources(sceneName) {
+        const editing  = editingPreId ? srcPresets.find(p => p.id === editingPreId) : null;
+        const showList = document.getElementById('exShowList');
+        const hideList = document.getElementById('exHideList');
+        if (!showList || !hideList) return;
+
+        if (!obs || !sceneName) {
+            showList.innerHTML = hideList.innerHTML = '<div style="font-size:10px;color:var(--dim)">Select a scene first.</div>';
+            return;
+        }
+
+        showList.innerHTML = hideList.innerHTML = '<div style="font-size:10px;color:var(--dim)">Loading…</div>';
+
+        const res   = await obs.req('GetSceneItemList', { sceneName }).catch(() => ({}));
+        const items = ((res.sceneItems || []).reverse()).map(i => i.sourceName);
+
+        if (!items.length) {
+            showList.innerHTML = hideList.innerHTML = '<div style="font-size:10px;color:var(--dim)">No sources in this scene.</div>';
+            return;
+        }
+
+        const chk = (name, prefix) => `
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0" id="lbl-${prefix}-${CSS.escape(name)}">
+                <input type="checkbox" id="${prefix}-${CSS.escape(name)}" value="${esc(name)}"
+                    ${editing?.[prefix+'Names']?.includes(name) ? 'checked' : ''} style="accent-color:var(--blue)"
+                    onchange="syncExclConflict('${CSS.escape(name)}')">
+                <span style="font-size:11px">${esc(name)}</span>
+            </label>`;
+
+        showList.innerHTML = items.map(n => chk(n, 'show')).join('');
+        hideList.innerHTML = items.map(n => chk(n, 'hide')).join('');
+
+        // Populate propSource from ticked checkboxes (called after initial load)
+        updatePropSourceDropdown();
+
+        // Apply conflict state
+        items.forEach(n => syncExclConflict(CSS.escape(n)));
+    }
+
+    function syncExclConflict(escapedName) {
+        const showEl  = document.getElementById('show-' + escapedName);
+        const hideEl  = document.getElementById('hide-' + escapedName);
+        const showLbl = document.getElementById('lbl-show-' + escapedName);
+        const hideLbl = document.getElementById('lbl-hide-' + escapedName);
+        if (!showEl || !hideEl) return;
+
+        if (showEl.checked) {
+            hideEl.checked = false; hideEl.disabled = true;
+            if (hideLbl) hideLbl.style.opacity = '0.35';
+        } else {
+            hideEl.disabled = false;
+            if (hideLbl) hideLbl.style.opacity = '';
+        }
+
+        if (hideEl.checked) {
+            showEl.checked = false; showEl.disabled = true;
+            if (showLbl) showLbl.style.opacity = '0.35';
+        } else {
+            showEl.disabled = false;
+            if (showLbl) showLbl.style.opacity = '';
+        }
+
+        // Refresh propSource dropdown to only show ticked sources
+        updatePropSourceDropdown();
+    }
+
+    function updatePropSourceDropdown() {
+        const sel = document.getElementById('exPropSource'); if (!sel) return;
+        const editing = editingPreId ? srcPresets.find(p => p.id === editingPreId) : null;
+
+        // Collect all ticked sources (show OR hide)
+        const ticked = [];
+        document.querySelectorAll('#exShowList input[type=checkbox]:checked, #exHideList input[type=checkbox]:checked')
+            .forEach(el => { if (!ticked.includes(el.value)) ticked.push(el.value); });
+
+        const prev = sel.value;   // preserve current selection if still valid
+        sel.innerHTML = '<option value="">-- Auto (first source) --</option>'
+            + ticked.map(n => `<option value="${esc(n)}"${n === (prev || editing?.propSource) ? ' selected' : ''}>${esc(n)}</option>`).join('');
+    }
+
+    function saveExclEdit() {
+        const label = document.getElementById('exLabel').value.trim();
+        if (!label) { alert('Please enter a label.'); return; }
+
+        const sceneName   = document.getElementById('exScene')?.value || currentScene;
+        const styleEl     = document.querySelector('[name=exStyle]:checked');
+        const displayStyle = styleEl ? styleEl.value : 'button';
+        const propSource   = document.getElementById('exPropSource')?.value || '';
+
+        // Collect checked sources from the dynamically loaded lists
+        const showNames = [...document.querySelectorAll('#exShowList input[type=checkbox]:checked')].map(el => el.value);
+        const hideNames = [...document.querySelectorAll('#exHideList input[type=checkbox]:checked')].map(el => el.value);
+
+        if (!showNames.length && !hideNames.length) { alert('Select at least one source for SHOW or HIDE.'); return; }
+
+        let icon = pendingPreIcon;
+        if (!icon && preIconTab === 'emoji') {
+            const v = document.getElementById('exInEmoji').value.trim();
+            if (v) icon = { type:'emoji', value:v };
+        }
+
+        if (editingPreId) {
+            const idx = srcPresets.findIndex(p => p.id === editingPreId);
+            if (idx !== -1) srcPresets[idx] = { ...srcPresets[idx], label, sceneName, displayStyle, propSource, showNames, hideNames, icon };
+        } else {
+            srcPresets.push({ id: Date.now(), label, sceneName, displayStyle, propSource, showNames, hideNames, icon });
+        }
+
+        storeSave('obs_tb_srcpre', srcPresets);
+        closeExclEdit();
+        renderScenePanel();
+        renderPresetsaved();
+    }
+
+
+    // ── ICON ──────────────────────────────────────────
+    // Default icon per action (Iconify) — ensures every toolbar/scene button
+    // still shows something recognizable in vertical / minimize (icon-only) mode.
+    const DEFAULT_ICONS = {
+        scene:   'mdi:movie-open-outline',
+        studio:  'mdi:theater',
+        vcam:    'mdi:webcam',
+        replay:  'mdi:rewind',
+        preset:  'mdi:target'
+    };
+
+    function renderIconHtml(icon, action, extraClass) {
+        const cls = 'btn-icon' + (extraClass ? ' ' + extraClass : '');
+        if (icon && icon.type === 'emoji') return `<span class="${cls}">${esc(icon.value)}</span>`;
+        if (icon && icon.type === 'img')   return `<span class="${cls}"><img src="${icon.value}"></span>`;
+        const def = DEFAULT_ICONS[action];
+        return def ? `<span class="${cls}"><iconify-icon icon="${def}"></iconify-icon></span>` : '';
+    }
+
+    function iconIds(ctx) {
+        return ctx === 'pre'
+            ? { tabEmoji:'exTabEmoji', tabImg:'exTabImg', paneEmoji:'exPaneEmoji', paneImg:'exPaneImg', preview:'exEmojiPreview', input:'exInEmoji', uploadTxt:'exUploadTxt' }
+            : { tabEmoji:'tabEmoji',   tabImg:'tabImg',   paneEmoji:'paneEmoji',   paneImg:'paneImg',   preview:'emojiPreview', input:'inEmoji',   uploadTxt:'uploadTxt' };
+    }
+
+    function switchIconTab(tab, ctx) {
+        ctx = ctx || 'btn';
+        const ids = iconIds(ctx);
+        if (ctx === 'pre') preIconTab = tab; else iconTab = tab;
+        document.getElementById(ids.paneEmoji).style.display = tab === 'emoji' ? 'flex' : 'none';
+        document.getElementById(ids.paneImg).style.display   = tab === 'img'   ? 'block' : 'none';
+        document.getElementById(ids.tabEmoji).classList.toggle('active', tab === 'emoji');
+        document.getElementById(ids.tabImg).classList.toggle('active',   tab === 'img');
+        if (tab === 'emoji') { if (ctx === 'pre') pendingPreIcon = null; else pendingIcon = null; }
+    }
+
+    function previewEmoji(v, ctx) {
+        ctx = ctx || 'btn';
+        const ids = iconIds(ctx);
+        const ep = document.getElementById(ids.preview);
+        if (v.trim()) {
+            ep.textContent = v.trim();
+            ep.classList.remove('empty');
+            if (ctx === 'pre') pendingPreIcon = { type:'emoji', value:v.trim() };
+            else pendingIcon = { type:'emoji', value:v.trim() };
+        } else {
+            ep.textContent = '';
+            ep.classList.add('empty');
+            if (ctx === 'pre') pendingPreIcon = null; else pendingIcon = null;
+        }
+    }
+
+    function triggerUpload(ctx) {
+        uploadCtx = ctx || 'btn';
+        document.getElementById('fileInput').click();
+    }
+
+    function handleFileUpload(e) {
+        const file = e.target.files[0]; if (!file) return;
+        const ctx = uploadCtx;
+        const ids = iconIds(ctx);
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.getElementById('resizeCanvas');
+                canvas.width = 32; canvas.height = 32;
+                const ctx2 = canvas.getContext('2d');
+                ctx2.clearRect(0, 0, 32, 32);
+                const s = Math.min(img.width, img.height);
+                ctx2.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 32, 32);
+                const data = canvas.toDataURL('image/png');
+                if (ctx === 'pre') pendingPreIcon = { type:'img', value:data };
+                else pendingIcon = { type:'img', value:data };
+                const ut = document.getElementById(ids.uploadTxt);
+                if (ut) ut.innerHTML = `<img src="${data}" style="width:20px;height:20px;border-radius:3px"> <span>${file.name}</span>`;
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    }
+
+
+    // ── ACTION CHANGE ─────────────────────────────────
+    function onActionChange() {
+        const v = document.getElementById('inAction').value;
+        const row = document.getElementById('sceneRow');
+        row.style.display = v === 'scene' ? 'flex' : 'none';
+        if (v === 'scene') fetchScenes();
+    }
+
+    async function fetchScenes() {
+        const sl = document.getElementById('sceneList');
+        if (!obs) {
+            sl.innerHTML = '<option value="">-- OBS Not Connected --</option>';
+            return;
+        }
+        sl.innerHTML = '<option value="">Loading...</option>';
+        const res = await obs.req('GetSceneList');
+        const scenes = (res.scenes || []).reverse();
+        if (scenes.length) {
+            sl.innerHTML = scenes.map(s => `<option value="${esc(s.sceneName)}">${esc(s.sceneName)}</option>`).join('');
+        } else {
+            sl.innerHTML = '<option value="">No scenes available</option>';
+        }
+    }
+
+
+    function saveBtn() {
+        const label  = document.getElementById('inLabel').value.trim();
+        const action = document.getElementById('inAction').value;
+        if (!label)  { alert('Please enter a button label.'); return; }
+        if (!action) { alert('Please select a function.'); return; }
+
+        let icon = pendingIcon;
+        if (!icon && iconTab === 'emoji') {
+            const v = document.getElementById('inEmoji').value.trim();
+            if (v) icon = { type:'emoji', value:v };
+        }
+
+        let extra = {};
+        if (action === 'scene') {
+            const manual   = document.getElementById('sceneManual').value.trim();
+            const dropdown = document.getElementById('sceneList').value;
+            const sceneName = manual || dropdown;
+            if (!sceneName) { alert('Please select or enter a scene name.'); return; }
+            extra = { scene:sceneName };
+        }
+
+        custBtns.push({ id:Date.now(), label, action, icon, ...extra });
+        storeSave('obs_tb_btns', custBtns);
+        resetAddForm();
+        renderAll();
+    }
+
+    function resetAddForm() {
+        editingBtnId = null;
+        document.getElementById('inLabel').value  = '';
+        document.getElementById('inAction').value = '';
+        document.getElementById('sceneRow').style.display = 'none';
+        document.getElementById('sceneManual').value = '';
+        const ep = document.getElementById('emojiPreview');
+        if (ep) { ep.textContent = ''; ep.classList.add('empty'); }
+        const ie = document.getElementById('inEmoji');
+        if (ie) ie.value = '';
+        const ut = document.getElementById('uploadTxt');
+        if (ut) ut.innerHTML = 'Click to select image (PNG/JPG/SVG)';
+        pendingIcon = null;
+        switchIconTab('emoji','btn');
+    }
+
+    function delBtn(id) {
+        if (editingBtnId === id) { editingBtnId = null; closeBtnEdit(); }
+        custBtns = custBtns.filter(b => b.id !== id);
+        storeSave('obs_tb_btns', custBtns);
+        renderAll();
+    }
+
+    async function fireBtn(id) {
+        const b = custBtns.find(x => x.id === id); if (!b || !obs) return;
+        if      (b.action === 'studio') {
+            const { studioModeEnabled } = await obs.req('GetStudioModeEnabled');
+            await obs.req('SetStudioModeEnabled', { studioModeEnabled: !studioModeEnabled });
+            liveStates.studio = !studioModeEnabled; updateCustIndicators();
+        }
+        else if (b.action === 'vcam')   {
+            const { outputActive } = await obs.req('GetVirtualCamStatus');
+            await obs.req(outputActive ? 'StopVirtualCam' : 'StartVirtualCam');
+            liveStates.vcam = !outputActive; updateCustIndicators();
+        }
+        else if (b.action === 'replay') {
+            const { outputActive } = await obs.req('GetReplayBufferStatus');
+            await obs.req(outputActive ? 'StopReplayBuffer' : 'StartReplayBuffer');
+            liveStates.replay = !outputActive; updateCustIndicators();
+        }
+        else if (b.action === 'scene' && b.scene) { obs.req('SetCurrentProgramScene', { sceneName:b.scene }); }
+    }
+
+
+    // ── OBS WEBSOCKET ─────────────────────────────────
+    class OBSClient {
+        constructor() { this.ws = null; this.cbs = {}; this.rid = 0; }
+
+        connect(host, port, pass) {
+            return new Promise((res, rej) => {
+                this._res = res; this._pass = pass;
+                try { this.ws = new WebSocket(`ws://${host}:${port}`); } catch(e) { rej(e); return; }
+                this.ws.onmessage = e => this._msg(JSON.parse(e.data));
+                this.ws.onerror   = () => rej();
+                this.ws.onclose   = () => { if (this.onDisconnect) this.onDisconnect(); };
+            });
+        }
+
+        async _msg(m) {
+            const { op, d } = m;
+            if (op === 0) {
+                let auth;
+                if (d.authentication && this._pass) {
+                    const enc = new TextEncoder();
+                    const h1  = await crypto.subtle.digest('SHA-256', enc.encode(this._pass + d.authentication.salt));
+                    const b1  = btoa(String.fromCharCode(...new Uint8Array(h1)));
+                    const h2  = await crypto.subtle.digest('SHA-256', enc.encode(b1 + d.authentication.challenge));
+                    auth = btoa(String.fromCharCode(...new Uint8Array(h2)));
+                }
+                this._tx(1, { rpcVersion:1, ...(auth && { authentication:auth }) });
+            } else if (op === 2) {
+                if (this.onConnect) this.onConnect();
+                this._res?.(); this._res = null;
+            } else if (op === 5) {
+                if (this.onEvent) this.onEvent(d.eventType, d.eventData || {});
+            } else if (op === 7) {
+                const cb = this.cbs[d.requestId];
+                if (cb) { cb(d.responseData || {}); delete this.cbs[d.requestId]; }
+            }
+        }
+
+        _tx(op, d) { if (this.ws?.readyState === 1) this.ws.send(JSON.stringify({ op, d })); }
+
+        req(type, data = {}) {
+            return new Promise(res => {
+                const id = String(++this.rid);
+                this.cbs[id] = res;
+                this._tx(6, { requestType:type, requestId:id, requestData:data });
+                setTimeout(() => { if (this.cbs[id]) { res({}); delete this.cbs[id]; } }, 4000);
+            });
+        }
+
+        close() { try { this.ws?.close(); } catch(e) {} }
+    }
+
+    async function doConnect(silent = false) {
+        const host = document.getElementById('wsHost').value.trim() || 'localhost';
+        const port = document.getElementById('wsPort').value.trim() || '4455';
+        const pass = document.getElementById('wsPass').value;
+        wsCfg = { host, port, pass };
+        storeSave('obs_tb_ws', wsCfg);
+        connTxt('Menyambung...', '');
+        obs?.close(); obs = new OBSClient();
+        obs.onConnect    = () => { dot(true); connTxt('Connected ✓', 'ok'); if (!silent) closeWin('set', 'btnSet'); pullStatus(); };
+        obs.onDisconnect = () => { dot(false); connTxt('Disconnected', 'err'); stopRecTimer(); setTimeout(() => doConnect(true), 6000); };
+        obs.onEvent = handleEvent;
+        try {
+            await obs.connect(host, port, pass);
+        } catch(e) {
+            dot(false); connTxt('Gagal — semak host/port/password', 'err');
+        }
+    }
+
+    function dot(on) {
+        ['connDot', 'connDotV'].forEach(id => {
+            const d = document.getElementById(id);
+            d.className = on ? 'on' : '';
+            d.title = on ? 'Connected to OBS' : 'Not connected';
+        });
+    }
+
+    function connTxt(msg, cls) {
+        const el = document.getElementById('connTxt');
+        el.textContent = msg; el.className = cls;
+    }
+
+    async function pullStatus() {
+        if (!obs) return;
+        const [s, r, sc, sm, vc, rb] = await Promise.all([
+            obs.req('GetStreamStatus'),
+            obs.req('GetRecordStatus'),
+            obs.req('GetCurrentProgramScene'),
+            obs.req('GetStudioModeEnabled').catch(() => ({})),
+            obs.req('GetVirtualCamStatus').catch(() => ({})),
+            obs.req('GetReplayBufferStatus').catch(() => ({}))
+        ]);
+        applyStream(!!s.outputActive);
+        applyRecord(!!r.outputActive, r.outputTimecode);
+        liveStates.studio = !!sm.studioModeEnabled;
+        liveStates.vcam   = !!vc.outputActive;
+        liveStates.replay = !!rb.outputActive;
+        updateCustIndicators();
+        if (sc.currentProgramSceneName) {
+            currentScene = sc.currentProgramSceneName;
+            highlightScene(currentScene);
+            await fetchSources(currentScene);
+            await warmPresetCaches();
+        }
+    }
+
+    // Pre-fetch source state for presets that target other scenes
+    async function warmPresetCaches() {
+        const otherPresets = srcPresets.filter(p => p.sceneName && p.sceneName !== currentScene);
+        for (const p of otherPresets) {
+            await refreshPresetCache(p);
+        }
+        srcPresets.forEach(p => updateSrcPreBtn(p));
+    }
+
+    function handleEvent(type, data) {
+        if (type === 'StreamStateChanged')         applyStream(!!data.outputActive);
+        if (type === 'RecordStateChanged')         applyRecord(!!data.outputActive, data.outputTimecode);
+        if (type === 'StudioModeStateChanged')     { liveStates.studio = !!data.studioModeEnabled; updateCustIndicators(); }
+        if (type === 'VirtualcamStateChanged')     { liveStates.vcam   = !!data.outputActive; updateCustIndicators(); }
+        if (type === 'ReplayBufferStateChanged')   { liveStates.replay = !!data.outputActive; updateCustIndicators(); }
+        if (type === 'CurrentProgramSceneChanged') {
+            currentScene = data.sceneName;
+            highlightScene(data.sceneName);
+            fetchSources(data.sceneName).then(() => warmPresetCaches());
+        }
+        if (type === 'SceneItemEnableStateChanged' && data.sceneName === currentScene) {
+            const item = sourceItems.find(i => i.sceneItemId === data.sceneItemId);
+            if (item) {
+                item.enabled = !!data.sceneItemEnabled;
+                updateSourceBtn(data.sceneItemId, item.enabled);
+                srcPresets.forEach(p => updateSrcPreBtn(p));
+            }
+        }
+        if (type === 'SceneItemLockStateChanged' && data.sceneName === currentScene) {
+            const item = sourceItems.find(i => i.sceneItemId === data.sceneItemId);
+            if (item) {
+                item.locked = !!data.sceneItemLocked;
+                updateSourceBtn(data.sceneItemId, item.enabled);
+                updatePropBarLockButtons(data.sceneItemId);
+            }
+        }
+    }
+
+    function highlightScene(name) {
+        document.querySelectorAll('.scene-btn').forEach(b => b.classList.remove('active-scene'));
+        const found = custBtns.find(b => b.action === 'scene' && b.scene === name);
+        if (found) {
+            const el = document.getElementById('sbtn-' + found.id);
+            if (el) el.classList.add('active-scene');
+        }
+    }
+
+    // ── SOURCE PANEL ──────────────────────────────────
+    async function fetchSources(sceneName) {
+        const panel = document.getElementById('sourcePanel');
+        if (!obs || !sceneName) { panel.innerHTML = ''; return; }
+
+        panel.innerHTML = '<span class="source-loading">Loading sources…</span>';
+        const res = await obs.req('GetSceneItemList', { sceneName });
+        const items = res.sceneItems || [];
+
+        // Simpan semua sources (bawah ke atas = reverse order)
+        sourceItems = items.reverse().map(i => ({
+            sceneItemId: i.sceneItemId,
+            sourceName:  i.sourceName,
+            enabled:     !!i.sceneItemEnabled,
+            locked:      !!i.sceneItemLocked
+        }));
+
+        renderSourcePanel();
+        renderSrcPrePanel();
+    }
+
+    function renderSourcePanel() {
+        const panel = document.getElementById('sourcePanel');
+        if (!sourceItems.length) { panel.innerHTML = ''; hideSrcPropBar(); return; }
+
+        const rules   = srcHiddenRules[currentScene] || {};
+        const visible = sourceItems.filter(i => rules[i.sourceName] !== 'hide');
+        if (!visible.length) { panel.innerHTML = ''; hideSrcPropBar(); return; }
+        const scLocks = srcLockedBtns[currentScene] || {};
+
+        const rowHtml = visible.map(i => {
+            const lk      = !!scLocks[i.sceneItemId];
+            const blocked = lk;
+            const cls = ['src-row',
+                i.enabled ? '' : 'src-hidden',
+                lk        ? 'src-locked' : '',
+                i.locked  ? 'src-obslocked' : ''
+            ].filter(Boolean).join(' ');
+            const visTitle = blocked
+                ? 'Locked — hold to unlock'
+                : (i.enabled ? 'Click to hide • Hold for Properties/Filters/Lock' : 'Click to show • Hold for Properties/Filters/Lock');
+            return '<div class="' + cls + '" id="srcrow-' + i.sceneItemId + '">'
+                + '<span class="src-name"'
+                +   ' onmousedown="srcHoldStart(event,' + i.sceneItemId + ')"'
+                +   ' onmouseup="srcHoldEnd(' + i.sceneItemId + ')"'
+                +   ' onmouseleave="srcHoldCancel()"'
+                +   ' ontouchstart="srcHoldStart(event,' + i.sceneItemId + ')"'
+                +   ' ontouchend="srcHoldEnd(' + i.sceneItemId + ')"'
+                +   ' title="' + visTitle + '">'
+                +   esc(i.sourceName)
+                + '</span>'
+                + '</div>';
+        }).join('');
+
+        panel.innerHTML = '<div class="source-header"><span>Sources</span>'
+            + '<div class="source-header-line"></div></div>' + rowHtml;
+    }
+
+    let _srcHoldTimer = null;
+    let _srcHoldFired = false;
+
+    function srcHoldStart(e, id) {
+        srcHoldCancel();
+        _srcHoldFired = false;
+        _srcHoldTimer = setTimeout(() => {
+            _srcHoldTimer = null;
+            _srcHoldFired = true;
+            fetchAndShowPropBar(id);
+        }, 500);
+    }
+
+    function srcHoldEnd(id) {
+        if (_srcHoldTimer) {
+            // Timer still running = short click → toggle show/hide
+            clearTimeout(_srcHoldTimer);
+            _srcHoldTimer = null;
+            if (!_srcHoldFired) toggleSourceVisibility(id);
+        }
+        // If _srcHoldFired = true, hold already triggered — do nothing
+        _srcHoldFired = false;
+    }
+
+    function srcHoldCancel() {
+        if (_srcHoldTimer) { clearTimeout(_srcHoldTimer); _srcHoldTimer = null; }
+        _srcHoldFired = false;
+    }
+
+    async function fetchAndShowPropBar(sceneItemId) {
+        const item = sourceItems.find(i => i.sceneItemId === sceneItemId);
+        if (!item) return;
+
+        const scLocks   = srcLockedBtns[currentScene] || {};
+        const btnLocked = !!scLocks[sceneItemId];
+
+        const bar = document.getElementById('srcPropBar'); if (!bar) return;
+        bar.innerHTML = '<span class="src-prop-name">' + esc(item.sourceName) + '</span>'
+            + '<div class="src-prop-sep"></div>'
+            + '<button class="src-prop-btn" onclick="srcOpenProps(' + sceneItemId + ')">' + icon('mdi:cog-outline') + ' Properties</button>'
+            + '<button class="src-prop-btn" onclick="srcOpenFilters(' + sceneItemId + ')">' + icon('mdi:filter-outline') + ' Filters</button>'
+            + '<div class="src-prop-sep"></div>'
+            + '<button class="src-prop-btn' + (btnLocked ? ' src-prop-locked' : '') + '" id="propLockBtn"'
+            +   ' onclick="toggleSrcLock(' + sceneItemId + ')" title="Prevent the eye toggle from being clicked (local lock)">'
+            +   icon(btnLocked ? 'mdi:lock' : 'mdi:lock-open-variant-outline') + (btnLocked ? ' Unlock Button' : ' Lock Button') + '</button>'
+            + '<button class="src-prop-btn' + (item.locked ? ' src-prop-locked' : '') + '" id="propObsLockBtn"'
+            +   ' onclick="toggleObsLock(' + sceneItemId + ')" title="Lock this source in OBS">'
+            +   icon(item.locked ? 'mdi:lock' : 'mdi:lock-open-variant-outline') + (item.locked ? ' Unlock Source' : ' Lock Source') + '</button>';
+        bar.classList.add('visible');
+
+        if (!obs) return;
+        // Fetch type-specific info
+        const [kindRes, setRes] = await Promise.all([
+            obs.req('GetInputKind', { inputName: item.sourceName }).catch(() => ({})),
+            obs.req('GetInputSettings', { inputName: item.sourceName }).catch(() => ({}))
+        ]);
+        const kind = kindRes.inputKind || '', settings = setRes.inputSettings || {};
+        let extra = '';
+        if (kind === 'image_source' && settings.file)
+            extra = esc(settings.file.split(/[\\/]/).pop());
+        else if ((kind.includes('game_capture') || kind.includes('window_capture')) && settings.window)
+            extra = esc(settings.window.split(':')[0]);
+        else if (kind === 'browser_source' && settings.url)
+            extra = esc(settings.url.replace(/^https?:\/\//, '').substring(0, 30));
+        else if ((kind === 'ffmpeg_source' || kind === 'vlc_source') && settings.local_file)
+            extra = esc(settings.local_file.split(/[\\/]/).pop());
+
+        if (extra) {
+            bar.innerHTML += '<div class="src-prop-sep"></div>'
+                + '<span class="src-prop-extra-val">' + extra + '</span>';
+        }
+    }
+
+    function hideSrcPropBar() {
+        const bar = document.getElementById('srcPropBar');
+        if (bar) { bar.innerHTML = ''; bar.classList.remove('visible'); }
+    }
+
+    async function srcOpenProps(id) {
+        const item = sourceItems.find(i => i.sceneItemId === id);
+        if (item && obs) await obs.req('OpenInputPropertiesDialog', { inputName: item.sourceName }).catch(() => {});
+    }
+
+    async function srcOpenFilters(id) {
+        const item = sourceItems.find(i => i.sceneItemId === id);
+        if (item && obs) await obs.req('OpenInputFiltersDialog', { inputName: item.sourceName }).catch(() => {});
+    }
+
+    function toggleSrcLock(sceneItemId) {
+        if (!currentScene) return;
+        if (!srcLockedBtns[currentScene]) srcLockedBtns[currentScene] = {};
+        const wasLocked = !!srcLockedBtns[currentScene][sceneItemId];
+        if (wasLocked) delete srcLockedBtns[currentScene][sceneItemId];
+        else srcLockedBtns[currentScene][sceneItemId] = true;
+        if (!Object.keys(srcLockedBtns[currentScene]).length) delete srcLockedBtns[currentScene];
+        storeSave('obs_tb_lockedbtns', srcLockedBtns);
+        const item = sourceItems.find(i => i.sceneItemId === sceneItemId);
+        if (item) updateSourceBtn(sceneItemId, item.enabled);
+        updatePropBarLockButtons(sceneItemId);
+    }
+
+    // Real OBS scene-item lock (SetSceneItemLocked)
+    async function toggleObsLock(sceneItemId) {
+        if (!obs || !currentScene) return;
+        const item = sourceItems.find(i => i.sceneItemId === sceneItemId);
+        if (!item) return;
+        const newLocked = !item.locked;
+        item.locked = newLocked;
+        updateSourceBtn(sceneItemId, item.enabled);
+        updatePropBarLockButtons(sceneItemId);
+        await obs.req('SetSceneItemLocked', {
+            sceneName: currentScene, sceneItemId, sceneItemLocked: newLocked
+        }).catch(() => {});
+    }
+
+    // Refresh the two lock buttons inside the properties bar without a full refetch
+    function updatePropBarLockButtons(sceneItemId) {
+        const item = sourceItems.find(i => i.sceneItemId === sceneItemId);
+        if (!item) return;
+        const scLocks   = srcLockedBtns[currentScene] || {};
+        const btnLocked = !!scLocks[sceneItemId];
+
+        const lockBtn = document.getElementById('propLockBtn');
+        if (lockBtn) {
+            lockBtn.innerHTML = icon(btnLocked ? 'mdi:lock' : 'mdi:lock-open-variant-outline') + (btnLocked ? ' Unlock Button' : ' Lock Button');
+            lockBtn.classList.toggle('src-prop-locked', btnLocked);
+        }
+        const obsLockBtn = document.getElementById('propObsLockBtn');
+        if (obsLockBtn) {
+            obsLockBtn.innerHTML = icon(item.locked ? 'mdi:lock' : 'mdi:lock-open-variant-outline') + (item.locked ? ' Unlock Source' : ' Lock Source');
+            obsLockBtn.classList.toggle('src-prop-locked', item.locked);
+        }
+    }
+
+    function updateSourceBtn(sceneItemId, enabled) {
+        const row = document.getElementById('srcrow-' + sceneItemId);
+        if (!row) return;
+        const item = sourceItems.find(i => i.sceneItemId === sceneItemId);
+        if (!item) return;
+        const lk = !!(srcLockedBtns[currentScene] && srcLockedBtns[currentScene][sceneItemId]);
+        row.className = ['src-row',
+            item.enabled ? '' : 'src-hidden',
+            lk ? 'src-locked' : '',
+            item.locked ? 'src-obslocked' : ''
+        ].filter(Boolean).join(' ');
+        const nameEl = row.querySelector('.src-name');
+        if (nameEl) {
+            const blocked = lk;
+            nameEl.title = blocked
+                ? 'Locked — hold to unlock'
+                : (item.enabled ? 'Click to hide • Hold for Properties/Filters/Lock' : 'Click to show • Hold for Properties/Filters/Lock');
+            nameEl.innerHTML = esc(item.sourceName);
+        }
+    }
+
+
+    async function toggleSourceVisibility(sceneItemId) {
+        if (!obs || !currentScene) return;
+        const item = sourceItems.find(i => i.sceneItemId === sceneItemId);
+        if (!item) return;
+        // Only the local "Lock Button" blocks show/hide — OBS's native
+        // source lock (Lock Source) does not affect this toggle.
+        const scLocks = srcLockedBtns[currentScene] || {};
+        if (scLocks[sceneItemId]) return;
+        const newState = !item.enabled;
+        item.enabled = newState;
+        updateSourceBtn(sceneItemId, newState);
+        await obs.req('SetSceneItemEnabled', {
+            sceneName: currentScene, sceneItemId, sceneItemEnabled: newState
+        });
+    }
+
+
+    // ── SOURCE PRESET PANEL ───────────────────────────
+    // renderSrcPrePanel delegates to renderScenePanel (presets live inside scene panel)
+    function renderSrcPrePanel() { renderScenePanel(); }
+
+    function getSrcPreState(preset) {
+        // Use sourceItems only if preset targets current scene or has no sceneName
+        const targetScene = preset.sceneName || currentScene;
+        const items = (targetScene === currentScene) ? sourceItems : (preset._cachedItems || []);
+
+        if (!preset.showNames.length) return 'mixed';
+        const states = preset.showNames.map(n => {
+            const it = items.find(i => i.sourceName === n);
+            return it ? it.enabled : null;
+        }).filter(s => s !== null);
+        if (!states.length) return preset._lastState || 'mixed';
+        const result = states.every(Boolean) ? 'active' : states.every(s => !s) ? 'hidden' : 'mixed';
+        preset._lastState = result;
+        return result;
+    }
+
+    // After fireSrcPre, cache items for non-current scenes so getSrcPreState works
+    async function refreshPresetCache(preset) {
+        const targetScene = preset.sceneName || currentScene;
+        if (!obs || !targetScene || targetScene === currentScene) return;
+        const res = await obs.req('GetSceneItemList', { sceneName: targetScene }).catch(() => ({}));
+        preset._cachedItems = (res.sceneItems || []).map(i => ({
+            sceneItemId: i.sceneItemId,
+            sourceName:  i.sourceName,
+            enabled:     !!i.sceneItemEnabled
+        }));
+    }
+
+    function updateSrcPreBtn(preset) {
+        const el = document.getElementById('spreBtn-' + preset.id);
+        if (!el) return;
+        const state = getSrcPreState(preset);
+        el.classList.remove('pre-active', 'pre-hidden');
+        if (state === 'active') el.classList.add('pre-active');
+        if (state === 'hidden') el.classList.add('pre-hidden');
+    }
+
+    async function fireSrcPre(id) {
+        if (!obs) return;
+        const preset = srcPresets.find(p => p.id === id);
+        if (!preset) return;
+
+        const targetScene   = preset.sceneName || currentScene;
+        if (!targetScene) return;
+        const isCurrentScene = targetScene === currentScene;
+
+        // Always fetch fresh state from OBS before deciding
+        const res   = await obs.req('GetSceneItemList', { sceneName: targetScene }).catch(() => ({}));
+        const items = (res.sceneItems || []).map(i => ({
+            sceneItemId: i.sceneItemId,
+            sourceName:  i.sourceName,
+            enabled:     !!i.sceneItemEnabled
+        }));
+
+        // Determine state based on fresh items
+        const showStates = preset.showNames.map(n => {
+            const it = items.find(i => i.sourceName === n);
+            return it ? it.enabled : null;
+        }).filter(s => s !== null);
+
+        const allActive = showStates.length > 0 && showStates.every(Boolean);
+        const activate  = !allActive;   // toggle: if all show-sources ON → turn off; else → turn on
+
+        const ops = [];
+
+        if (activate) {
+            // Snapshot BEFORE changes for restore
+            preset._snap = {};
+            [...preset.showNames, ...preset.hideNames].forEach(name => {
+                const it = items.find(i => i.sourceName === name);
+                if (it) preset._snap[name] = it.enabled;
+            });
+
+            // Force-show showNames
+            for (const name of preset.showNames) {
+                const it = items.find(i => i.sourceName === name);
+                if (!it) continue;
+                it.enabled = true;
+                if (isCurrentScene) updateSourceBtn(it.sceneItemId, true);
+                ops.push(obs.req('SetSceneItemEnabled', {
+                    sceneName: targetScene, sceneItemId: it.sceneItemId, sceneItemEnabled: true
+                }));
+            }
+            // Force-hide hideNames
+            for (const name of preset.hideNames) {
+                const it = items.find(i => i.sourceName === name);
+                if (!it) continue;
+                it.enabled = false;
+                if (isCurrentScene) updateSourceBtn(it.sceneItemId, false);
+                ops.push(obs.req('SetSceneItemEnabled', {
+                    sceneName: targetScene, sceneItemId: it.sceneItemId, sceneItemEnabled: false
+                }));
+            }
+
+        } else {
+            // Restore to snapshot
+            const snap     = preset._snap || {};
+            const allNames = [...new Set([...preset.showNames, ...preset.hideNames])];
+            for (const name of allNames) {
+                const it   = items.find(i => i.sourceName === name);
+                if (!it) continue;
+                const want = name in snap ? snap[name]
+                    : preset.showNames.includes(name) ? false : true;
+                it.enabled = want;
+                if (isCurrentScene) updateSourceBtn(it.sceneItemId, want);
+                ops.push(obs.req('SetSceneItemEnabled', {
+                    sceneName: targetScene, sceneItemId: it.sceneItemId, sceneItemEnabled: want
+                }));
+            }
+            preset._snap = null;
+        }
+
+        await Promise.all(ops);
+
+        // Update sourceItems cache if same scene
+        if (isCurrentScene) {
+            items.forEach(fresh => {
+                const cached = sourceItems.find(s => s.sceneItemId === fresh.sceneItemId);
+                if (cached) cached.enabled = fresh.enabled;
+            });
+        } else {
+            preset._cachedItems = items;
+        }
+
+        // Refresh all preset button states
+        srcPresets.forEach(p => updateSrcPreBtn(p));
+    }
+
+    function delSrcPre(id) {
+        if (editingPreId === id) { editingPreId = null; }
+        srcPresets = srcPresets.filter(p => p.id !== id);
+        storeSave('obs_tb_srcpre', srcPresets);
+        renderScenePanel();
+        renderPresetsaved();
+    }
+
+
+    // ── PRESET CONTEXT MENU ───────────────────────────
+    let ctxPreId = null;
+
+    function openPreCtx(e, id) {
+        e.stopPropagation();
+        ctxPreId = id;
+        const menu = document.getElementById('preCtxMenu');
+        menu.classList.add('open');
+        const ww = window.innerWidth, wh = window.innerHeight;
+        let x = e.clientX, y = e.clientY;
+        // measure after brief tick
+        requestAnimationFrame(() => {
+            const mw = menu.offsetWidth || 100, mh = menu.offsetHeight || 70;
+            if (x + mw > ww - 4) x = ww - mw - 4;
+            if (y + mh > wh - 4) y = wh - mh - 4;
+            menu.style.left = x + 'px';
+            menu.style.top  = y + 'px';
+        });
+    }
+
+    function closePreCtx() {
+        document.getElementById('preCtxMenu').classList.remove('open');
+        ctxPreId = null;
+    }
+
+    function ctxDoEdit() {
+        const id = ctxPreId; closePreCtx();
+        openExclEdit(id);
+    }
+
+    function ctxDoDel() {
+        const id = ctxPreId; closePreCtx();
+        const p = srcPresets.find(x => x.id === id); if (!p) return;
+        // Show inline confirm in saved list if open, else confirm in panel
+        const psItem = document.getElementById('psitem-' + id);
+        if (psItem) {
+            psItem.innerHTML = `
+                <div class="confirm-row" style="width:100%">
+                    <span>Delete "${esc(p.label)}"?</span>
+                    <button class="btn confirm-yes" style="height:22px;padding:0 8px;font-size:10px"
+                        onclick="delSrcPre(${id})">Delete</button>
+                    <button class="btn" style="height:22px;padding:0 8px;font-size:10px"
+                        onclick="renderPresetsaved()">Cancel</button>
+                </div>`;
+        } else {
+            if (confirm(`Delete preset "${p.label}"?`)) delSrcPre(id);
+        }
+    }
+
+    // Close context menu on outside click
+    document.addEventListener('click', () => closePreCtx());
+
+    function applyStream(on) {
+        streaming = on;
+        document.getElementById('btnStream').classList.toggle('live', on);
+        document.getElementById('streamLbl').textContent = on ? 'LIVE' : 'Start Streaming';
+    }
+
+    function applyRecord(on, tc) {
+        recording = on;
+        document.getElementById('btnRec').classList.toggle('rec', on);
+        const rt = document.getElementById('recTime');
+        const rl = document.getElementById('recLbl');
+        if (on) {
+            if (tc) {
+                const p = tc.split(':');
+                recSec = parseInt(p[0]) * 3600 + parseInt(p[1]) * 60 + Math.floor(parseFloat(p[2]));
+            }
+            startRecTimer();
+            if (orientation === 'horizontal') { rt.style.display = ''; rl.style.display = 'none'; }
+        } else {
+            stopRecTimer(); rt.style.display = 'none'; rl.style.display = '';
+        }
+    }
+
+    function startRecTimer() {
+        stopRecTimer();
+        recTick = setInterval(() => {
+            recSec++;
+            document.getElementById('recTime').textContent = fmtTime(recSec);
+        }, 1000);
+    }
+
+    function stopRecTimer() { clearInterval(recTick); recTick = null; recSec = 0; }
+
+    function fmtTime(s) {
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+        return h ? `${p2(h)}:${p2(m)}:${p2(sec)}` : `${p2(m)}:${p2(sec)}`;
+    }
+
+    function p2(n) { return String(n).padStart(2, '0'); }
+
+    function toggleStream() { if (!obs) { openWin('set', 'btnSet'); return; } obs.req(streaming ? 'StopStream' : 'StartStream'); }
+    function toggleRecord() { if (!obs) { openWin('set', 'btnSet'); return; } obs.req(recording ? 'StopRecord' : 'StartRecord'); }
+
+
+    // ── ORIENTATION ───────────────────────────────────
+    function detectOrient() {
+        return window.innerWidth <= window.innerHeight ? 'vertical' : 'horizontal';
+    }
+
+    function setOrient(o) {
+        autoOrient = false;
+        storeSave('obs_tb_auto', false);
+        orientation = o;
+        storeSave('obs_tb_orient', o);
+        applyOrient(o, true);
+    }
+
+    function setOrientAuto() {
+        autoOrient = true;
+        storeSave('obs_tb_auto', true);
+        orientation = detectOrient();
+        applyOrient(orientation, true);
+    }
+
+    function applyOrient(o, closeSet) {
+        document.body.classList.toggle('vertical', o === 'vertical');
+        document.getElementById('btnHoriz').classList.toggle('active', !autoOrient && o === 'horizontal');
+        document.getElementById('btnVert').classList.toggle('active',  !autoOrient && o === 'vertical');
+        document.getElementById('btnAuto').classList.toggle('active',  autoOrient);
+        if (closeSet) closeSettings();
+    }
+
+    // ── MINIMIZE BUTTONS (icon-only) ──────────────────
+    function toggleMinimize() {
+        minimizeBtns = !minimizeBtns;
+        storeSave('obs_tb_minimize', minimizeBtns);
+        applyMinimize();
+    }
+
+    function applyMinimize() {
+        document.body.classList.toggle('minimize-btns', minimizeBtns);
+        const b = document.getElementById('btnMinimize');
+        if (b) {
+            b.textContent = minimizeBtns ? 'On' : 'Off';
+            b.classList.toggle('active', minimizeBtns);
+        }
+    }
+
+
+    // ── UNIFIED SETTINGS WINDOW ──────────────────────
+    let activeTab = 'toolbar';
+
+    function openSettings() {
+        const win = document.getElementById('winSettings');
+        const btn = document.getElementById('btnSet');
+        if (win.classList.contains('open')) { closeSettings(); return; }
+        win.classList.add('open');
+        btn.classList.add('active-btn');
+        renderSaved();
+        renderSceneSaved();
+        renderPresetsaved();
+        swTab(activeTab);
+        positionSettings(win, btn);
+    }
+
+    function closeSettings() {
+        document.getElementById('winSettings').classList.remove('open');
+        document.getElementById('btnSet').classList.remove('active-btn');
+    }
+
+    function positionSettings(win, btn) {
+        win.style.visibility = 'hidden';
+        requestAnimationFrame(() => {
+            const br  = btn.getBoundingClientRect();
+            const ww  = window.innerWidth, wh = window.innerHeight;
+            const winW = win.offsetWidth  || 480;
+            const winH = win.offsetHeight || 380;
+            const GAP  = 6;
+            let left, top;
+            if (orientation === 'vertical') {
+                left = br.right + GAP;
+                top  = br.top;
+            } else {
+                left = br.right - winW;
+                top  = br.bottom + GAP;
+            }
+            if (left + winW > ww - GAP) left = ww - winW - GAP;
+            if (left < GAP) left = GAP;
+            if (top  + winH > wh - GAP) top = wh - winH - GAP;
+            if (top  < GAP) top = GAP;
+            win.style.left = left + 'px';
+            win.style.top  = top  + 'px';
+            win.style.visibility = 'visible';
+        });
+    }
+
+    function swTab(name) {
+        activeTab = name;
+        document.querySelectorAll('.sw-tab').forEach(t => t.classList.add('sw-hidden'));
+        document.querySelectorAll('.sw-nav-item').forEach(n => n.classList.remove('sw-act'));
+        const tab = document.getElementById('tab-' + name);
+        if (tab) tab.classList.remove('sw-hidden');
+        // Find and activate matching nav item
+        document.querySelectorAll('.sw-nav-item').forEach(n => {
+            if (n.getAttribute('onclick') === `swTab('${name}')`) n.classList.add('sw-act');
+        });
+        if (name === 'shortcut')  renderShortcutTab();
+        if (name === 'exclusive') renderPresetsaved();
+        if (name === 'scene')     renderSceneSaved();
+        if (name === 'toolbar')   renderSaved();
+        if (name === 'hidsrc')    initHidSrcTab();
+    }
+
+
+    // ── HIDDEN SOURCES TAB ───────────────────────────
+    async function initHidSrcTab() {
+        const sel = document.getElementById('hidSrcScene'); if (!sel) return;
+        sel.innerHTML = '<option value="">-- Select scene --</option>';
+        if (!obs) {
+            document.getElementById('hidSrcList').innerHTML =
+                '<div style="font-size:11px;color:var(--dim)">Connect to OBS first.</div>';
+            return;
+        }
+        const res = await obs.req('GetSceneList').catch(() => ({}));
+        const scenes = ((res.scenes || []).reverse()).map(s => s.sceneName);
+        sel.innerHTML = '<option value="">-- Select scene --</option>' +
+            scenes.map(s => `<option value="${esc(s)}"${s===currentScene?' selected':''}>${esc(s)}</option>`).join('');
+        if (currentScene) loadHidSrcList(currentScene);
+    }
+
+    async function loadHidSrcList(sceneName) {
+        const wrap = document.getElementById('hidSrcList'); if (!wrap) return;
+        if (!sceneName || !obs) { wrap.innerHTML = ''; return; }
+        wrap.innerHTML = '<div style="font-size:11px;color:var(--dim)">Loading...</div>';
+        const res   = await obs.req('GetSceneItemList', { sceneName }).catch(() => ({}));
+        const items = ((res.sceneItems || []).reverse()).map(i => i.sourceName);
+        const rules = srcHiddenRules[sceneName] || {};
+        if (!items.length) { wrap.innerHTML = '<div style="font-size:11px;color:var(--dim)">No sources found.</div>'; return; }
+        wrap.innerHTML = `<div style="display:flex;flex-direction:column;gap:2px">
+            ${items.map(name => {
+                const state = rules[name] || 'show';
+                return `<div class="sc-row" style="justify-content:space-between">
+                    <span style="font-size:11px">${esc(name)}</span>
+                    <div style="display:flex;gap:4px">
+                        <button class="src-vis-btn${state==='show'?' active-show':''}"
+                            onclick="setHidSrcRule('${esc(sceneName)}','${esc(name)}','show')">Show</button>
+                        <button class="src-vis-btn${state==='hide'?' active-hide':''}"
+                            onclick="setHidSrcRule('${esc(sceneName)}','${esc(name)}','hide')">Hide</button>
+                    </div>
+                </div>`;
+            }).join('')}
+        </div>`;
+    }
+
+    function setHidSrcRule(sceneName, sourceName, state) {
+        if (!srcHiddenRules[sceneName]) srcHiddenRules[sceneName] = {};
+        if (state === 'show') delete srcHiddenRules[sceneName][sourceName];
+        else srcHiddenRules[sceneName][sourceName] = 'hide';
+        if (!Object.keys(srcHiddenRules[sceneName]).length) delete srcHiddenRules[sceneName];
+        storeSave('obs_tb_hidrules', srcHiddenRules);
+        loadHidSrcList(sceneName);
+        if (sceneName === currentScene) renderSourcePanel();
+    }
+
+
+    // ── SHORTCUT ──────────────────────────────────────
+    function renderShortcutTab() {
+        const wrap = document.getElementById('shortcutList'); if (!wrap) return;
+        const labels = { scene:'Scene', studio:'Studio Mode', vcam:'Virtual Cam', replay:'Replay Buffer' };
+
+        const allItems = [
+            ...custBtns.map(b  => ({ type:'btn', id:b.id,  label:b.label, tag:labels[b.action]||b.action })),
+            ...srcPresets.map(p => ({ type:'pre', id:p.id, label:p.label, tag:'Preset' }))
+        ];
+
+        if (!allItems.length) {
+            wrap.innerHTML = '<div style="font-size:11px;color:var(--dim)">No buttons or presets available for shortcut assignment.</div>';
+            return;
+        }
+
+        wrap.innerHTML = allItems.map(item => {
+            const scKey = `${item.type}-${item.id}`;
+            const keys  = shortcuts[scKey] || [];   // array of strings
+            const chips = keys.map((k, i) => `
+                <span class="sc-chip">
+                    ${esc(k)}
+                    <button class="sc-chip-del" onclick="delOneShortcut('${scKey}',${i})" title="Delete">×</button>
+                </span>`).join('');
+
+            return `<div class="sc-row">
+                <div class="sc-left">
+                    <span class="sc-label">${esc(item.label)}</span>
+                    <span class="s-tag sc-tag">${item.tag}</span>
+                </div>
+                <div class="sc-chips" id="schips-${scKey}">${chips}</div>
+                <button class="sc-add-btn ${_recordingKey===scKey?'recording':''}"
+                    id="scadd-${scKey}"
+                    onclick="startRecordKey(this,'${scKey}')"
+                    title="Add shortcut">+</button>
+            </div>`;
+        }).join('');
+    }
+
+    let _recordingEl = null, _recordingKey = null;
+
+    function startRecordKey(el, scKey) {
+        // Cancel previous recording
+        if (_recordingEl && _recordingEl !== el) {
+            _recordingEl.classList.remove('recording');
+            _recordingEl.textContent = '+';
+        }
+        _recordingEl  = el;
+        _recordingKey = scKey;
+        el.classList.add('recording');
+        el.textContent = '…';
+    }
+
+    function delOneShortcut(scKey, idx) {
+        const arr = shortcuts[scKey] || [];
+        arr.splice(idx, 1);
+        if (arr.length === 0) delete shortcuts[scKey];
+        else shortcuts[scKey] = arr;
+        storeSave('obs_tb_sc', shortcuts);
+        renderShortcutTab();
+    }
+
+    function delShortcut(scKey) {
+        delete shortcuts[scKey];
+        storeSave('obs_tb_sc', shortcuts);
+        renderShortcutTab();
+    }
+
+    // Global keydown — capture shortcut or fire
+    document.addEventListener('keydown', e => {
+        // If recording a shortcut
+        if (_recordingEl && _recordingKey) {
+            e.preventDefault();
+            if (e.key === 'Escape') {
+                // Cancel
+                _recordingEl.classList.remove('recording');
+                _recordingEl.textContent = '+';
+                _recordingEl  = null;
+                _recordingKey = null;
+                return;
+            }
+            // Ignore lone modifier keys
+            if (['Control','Shift','Alt','Meta'].includes(e.key)) return;
+
+            // Build key string e.g. "Ctrl+Shift+F24"
+            const parts = [];
+            if (e.ctrlKey)  parts.push('Ctrl');
+            if (e.shiftKey) parts.push('Shift');
+            if (e.altKey)   parts.push('Alt');
+            parts.push(e.key);
+            const keyStr = parts.join('+');
+
+            // Add to array (avoid duplicate)
+            const arr = shortcuts[_recordingKey] || [];
+            if (!arr.includes(keyStr)) {
+                arr.push(keyStr);
+                shortcuts[_recordingKey] = arr;
+                storeSave('obs_tb_sc', shortcuts);
+            }
+
+            _recordingEl.classList.remove('recording');
+            _recordingEl.textContent = '+';
+            _recordingEl  = null;
+            _recordingKey = null;
+            renderShortcutTab();
+            return;
+        }
+
+        // Not recording — check if key matches any shortcut
+        const parts = [];
+        if (e.ctrlKey)  parts.push('Ctrl');
+        if (e.shiftKey) parts.push('Shift');
+        if (e.altKey)   parts.push('Alt');
+        parts.push(e.key);
+        const pressed = parts.join('+');
+
+        for (const [scKey, keys] of Object.entries(shortcuts)) {
+            const arr = Array.isArray(keys) ? keys : [keys];   // backward compat
+            if (!arr.includes(pressed)) continue;
+            const [type, ...rest] = scKey.split('-');
+            const id = parseInt(rest.join('-'));
+            if (type === 'btn') {
+                const b = custBtns.find(x => x.id === id);
+                if (b) { e.preventDefault(); fireBtn(id); }
+            } else if (type === 'pre') {
+                e.preventDefault(); fireSrcPre(id);
+            }
+        }
+    });
+
+    // ── Old openWin shim (for applyOrient closeSet) ──
+    function closeWin(name, btnId) {
+        if (name === 'set') closeSettings();
+    }
+
+    function openWin(name, btnId) {
+        if (name === 'set') openSettings();
+    }
+
+    function initDrag(winId, handleId) {
+        const win = document.getElementById(winId);
+        const hnd = document.getElementById(handleId);
+        hnd.addEventListener('mousedown', e => {
+            if (e.button !== 0) return;
+            const r = win.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top;
+            e.preventDefault();
+            const mv = e => { win.style.left = (e.clientX - ox) + 'px'; win.style.top = (e.clientY - oy) + 'px'; };
+            const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); };
+            document.addEventListener('mousemove', mv);
+            document.addEventListener('mouseup', up);
+        });
+    }
+
+    function initResize(winId, handleId) {
+        if (!handleId) return;   // settings-win uses native CSS resize
+        const win = document.getElementById(winId);
+        const hdl = document.getElementById(handleId);
+        if (!win || !hdl) return;
+        hdl.addEventListener('mousedown', e => {
+            e.preventDefault();
+            const sw = win.offsetWidth, sh = win.offsetHeight, sx = e.clientX, sy = e.clientY;
+            const mv = e => {
+                win.style.width     = Math.max(240, sw + e.clientX - sx) + 'px';
+                win.style.minHeight = Math.max(100, sh + e.clientY - sy) + 'px';
+            };
+            const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); };
+            document.addEventListener('mousemove', mv);
+            document.addEventListener('mouseup', up);
+        });
+    }
+
+    // ── GITHUB LINK ── isi URL di sini bila dah upload ke GitHub
+    // Contoh: 'https://github.com/username/obs-toolbar'
+    const GITHUB_URL = ''; // << LETAK URL GITHUB DI SINI
+
+    function openLink(url) {
+        const target = url && url !== '<!-- GITHUB_URL_HERE -->' ? url : GITHUB_URL;
+        if (!target) { alert('GitHub URL not set.\nOpen the HTML code and fill in GITHUB_URL.'); return; }
+        window.open(target, '_blank');
+    }
+
+    function esc(s) {
+        return String(s)
+            .replace(/&/g,  '&amp;')
+            .replace(/</g,  '&lt;')
+            .replace(/>/g,  '&gt;')
+            .replace(/"/g,  '&quot;');
+    }
+
+    // Build an <iconify-icon> snippet (https://icones.js.org)
+    function icon(name) {
+        return '<iconify-icon icon="' + name + '"></iconify-icon>';
+    }
+    </script>
+</body>
+
+</html>
