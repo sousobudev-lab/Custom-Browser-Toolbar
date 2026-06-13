@@ -31,6 +31,10 @@
 
 <img width="1235" height="793" alt="image" src="https://github.com/user-attachments/assets/bea5cf35-9b7c-4fdf-b315-d94c3044f681" />
 
+[Minimize Button]
+<img width="1228" height="580" alt="image" src="https://github.com/user-attachments/assets/94fb3fe3-3b46-4d20-ac27-d9d1fa6853a9" />
+
+
 ---
 
 ## Requirements | Keperluan
