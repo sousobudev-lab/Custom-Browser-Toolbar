@@ -61,7 +61,7 @@
 <img width="1235" height="1032" alt="image" src="https://github.com/user-attachments/assets/dcfb05d4-a566-4908-86e3-b5c7a6c705c9" />
 
 5. Connect and control OBS | Sambung dan kawal OBS
-`Click connect and if setting closed websocket ready to connected adn will show green indicator`
+`Click connect and if setting closed websocket ready to connected and will show green indicator`
 
 ---
 
